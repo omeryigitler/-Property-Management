@@ -28,7 +28,7 @@ export function BookingCell({
 
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const { booking, isOccupied, isCheckIn, isCheckOut, nightIndex, totalNights } = cellState;
+  const { booking, isOccupied, isCheckIn, nightIndex, totalNights } = cellState;
 
   let bgClass = 'bg-slate-950/40 hover:bg-slate-800/60';
   if (isHoveredCell) {
@@ -53,14 +53,9 @@ export function BookingCell({
         onMouseLeave={() => setHoveredCell(null)}
         tabIndex={0}
         role="button"
-        aria-label={`Empty cell for property ${propertyId} on date ${dateStr}`}
+        aria-label={`Available cell for property ${propertyId} on date ${dateStr}`}
         className={`w-[190px] min-w-[160px] h-9 sm:h-10 border-r border-b border-slate-800/70 cursor-pointer transition-colors relative flex items-center justify-center group ${bgClass}`}
       >
-        {isCheckOut && (
-          <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider opacity-70">
-            Out / Avail
-          </span>
-        )}
         <span className="hidden group-hover:inline-block text-[11px] text-[#ff3e00] font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
           + Book
         </span>
