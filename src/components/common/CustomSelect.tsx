@@ -1,4 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 
 export interface SelectOption<T extends string | number> {
@@ -20,6 +27,19 @@ interface CustomSelectProps<T extends string | number> {
   className?: string;
 }
 
+interface MenuPosition {
+  left: number;
+  width: number;
+  maxHeight: number;
+  top?: number;
+  bottom?: number;
+}
+
+const VIEWPORT_PADDING = 8;
+const MENU_GAP = 6;
+const MAX_MENU_HEIGHT = 240;
+const MIN_MENU_HEIGHT = 96;
+
 export function CustomSelect<T extends string | number>({
   id,
   label,
@@ -31,105 +51,270 @@ export function CustomSelect<T extends string | number>({
   disabled = false,
   className = '',
 }: CustomSelectProps<T>) {
+  const generatedId = useId();
+  const selectId = id || `custom-select-${generatedId}`;
+  const menuId = `${selectId}-menu`;
+
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  const optionRefs = useRef<Array<HTMLLIElement | null>>([]);
 
-  const selectedOption = options.find((o) => o.value === value);
+  const selectedIndex = useMemo(
+    () => options.findIndex((option) => option.value === value),
+    [options, value]
+  );
+  const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : undefined;
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const updatePosition = () => {
+    const trigger = buttonRef.current;
+    if (!trigger || typeof window === 'undefined') return;
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (disabled) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setIsOpen((prev) => !prev);
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
-    } else if (e.key === 'ArrowDown' && isOpen) {
-      e.preventDefault();
-      const currentIndex = options.findIndex((o) => o.value === value);
-      const nextIndex = (currentIndex + 1) % options.length;
-      onChange(options[nextIndex].value);
-    } else if (e.key === 'ArrowUp' && isOpen) {
-      e.preventDefault();
-      const currentIndex = options.findIndex((o) => o.value === value);
-      const prevIndex = (currentIndex - 1 + options.length) % options.length;
-      onChange(options[prevIndex].value);
+    const rect = trigger.getBoundingClientRect();
+    const availableBelow = window.innerHeight - rect.bottom - MENU_GAP - VIEWPORT_PADDING;
+    const availableAbove = rect.top - MENU_GAP - VIEWPORT_PADDING;
+    const openAbove = availableBelow < MIN_MENU_HEIGHT && availableAbove > availableBelow;
+    const availableSpace = openAbove ? availableAbove : availableBelow;
+    const maxHeight = Math.max(
+      MIN_MENU_HEIGHT,
+      Math.min(MAX_MENU_HEIGHT, Math.max(0, availableSpace))
+    );
+    const maximumLeft = Math.max(
+      VIEWPORT_PADDING,
+      window.innerWidth - rect.width - VIEWPORT_PADDING
+    );
+    const left = Math.min(Math.max(VIEWPORT_PADDING, rect.left), maximumLeft);
+
+    setMenuPosition({
+      left,
+      width: rect.width,
+      maxHeight,
+      ...(openAbove
+        ? { bottom: window.innerHeight - rect.top + MENU_GAP }
+        : { top: rect.bottom + MENU_GAP }),
+    });
+  };
+
+  const closeMenu = (returnFocus = false) => {
+    setIsOpen(false);
+    setMenuPosition(null);
+    if (returnFocus) {
+      window.requestAnimationFrame(() => buttonRef.current?.focus());
     }
   };
 
+  const openMenu = (preferredIndex?: number) => {
+    if (disabled || options.length === 0) return;
+    const nextIndex =
+      preferredIndex ?? (selectedIndex >= 0 ? selectedIndex : 0);
+    setActiveIndex(nextIndex);
+    setIsOpen(true);
+    window.requestAnimationFrame(updatePosition);
+  };
+
+  const selectOption = (index: number) => {
+    const option = options[index];
+    if (!option) return;
+    onChange(option.value);
+    closeMenu(true);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updatePosition();
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      const insideTrigger = containerRef.current?.contains(target);
+      const insideMenu = menuRef.current?.contains(target);
+      if (!insideTrigger && !insideMenu) {
+        closeMenu(false);
+      }
+    };
+
+    const handleViewportChange = () => updatePosition();
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || activeIndex < 0) return;
+    optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, isOpen]);
+
+  useEffect(() => {
+    if (disabled && isOpen) closeMenu(false);
+  }, [disabled, isOpen]);
+
+  const handleButtonKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (isOpen) {
+        selectOption(activeIndex >= 0 ? activeIndex : selectedIndex);
+      } else {
+        openMenu();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!isOpen) {
+        openMenu(selectedIndex >= 0 ? selectedIndex : 0);
+      } else {
+        setActiveIndex((current) => (current + 1 + options.length) % options.length);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!isOpen) {
+        openMenu(selectedIndex >= 0 ? selectedIndex : options.length - 1);
+      } else {
+        setActiveIndex((current) => (current - 1 + options.length) % options.length);
+      }
+      return;
+    }
+
+    if (event.key === 'Escape' && isOpen) {
+      event.preventDefault();
+      closeMenu(true);
+    }
+  };
+
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((current) => (current + 1 + options.length) % options.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((current) => (current - 1 + options.length) % options.length);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setActiveIndex(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setActiveIndex(options.length - 1);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectOption(activeIndex);
+    } else if (event.key === 'Escape' || event.key === 'Tab') {
+      closeMenu(event.key === 'Escape');
+    }
+  };
+
+  const menu =
+    isOpen && menuPosition && typeof document !== 'undefined'
+      ? createPortal(
+          <ul
+            id={menuId}
+            ref={menuRef}
+            role="listbox"
+            tabIndex={-1}
+            aria-labelledby={selectId}
+            onKeyDown={handleMenuKeyDown}
+            className="fixed z-[10000] overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 py-1 text-sm text-slate-100 shadow-2xl outline-none no-scrollbar"
+            style={{
+              left: menuPosition.left,
+              width: menuPosition.width,
+              maxHeight: menuPosition.maxHeight,
+              top: menuPosition.top,
+              bottom: menuPosition.bottom,
+            }}
+          >
+            {options.map((option, index) => {
+              const isSelected = option.value === value;
+              const isActive = index === activeIndex;
+
+              return (
+                <li
+                  key={String(option.value)}
+                  ref={(node) => {
+                    optionRefs.current[index] = node;
+                  }}
+                  role="option"
+                  aria-selected={isSelected}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectOption(index)}
+                  className={`flex min-h-10 w-full cursor-pointer items-center justify-between gap-3 px-3.5 py-2.5 transition-colors ${
+                    isSelected
+                      ? 'bg-cyan-950/90 font-medium text-cyan-200'
+                      : isActive
+                        ? 'bg-slate-800 text-slate-100'
+                        : 'text-slate-200 hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    {option.icon}
+                    <span className="truncate">{option.label}</span>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    {option.badge}
+                    {isSelected && <Check className="h-4 w-4 text-cyan-400" />}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>,
+          document.body
+        )
+      : null;
+
   return (
-    <div className={`relative flex flex-col gap-1.5 ${className}`} ref={containerRef}>
+    <div className={`relative flex min-w-0 flex-col gap-1.5 ${className}`} ref={containerRef}>
       {label && (
-        <label htmlFor={id} className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+        <label htmlFor={selectId} className="text-xs font-semibold uppercase tracking-wider text-slate-300">
           {label}
         </label>
       )}
 
       <button
-        id={id}
+        id={selectId}
+        ref={buttonRef}
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen((prev) => !prev)}
-        onKeyDown={handleKeyDown}
+        onClick={() => (isOpen ? closeMenu(false) : openMenu())}
+        onKeyDown={handleButtonKeyDown}
         aria-haspopup="listbox"
+        aria-controls={menuId}
         aria-expanded={isOpen}
-        className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
-          disabled ? 'opacity-50 cursor-not-allowed bg-slate-900/50 border-slate-800 text-slate-500' : 'cursor-pointer bg-slate-900 border-slate-700/80 text-slate-100 hover:border-slate-600'
+        className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border px-3.5 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+          disabled
+            ? 'cursor-not-allowed border-slate-800 bg-slate-900/50 text-slate-500 opacity-50'
+            : 'cursor-pointer border-slate-700/80 bg-slate-900 text-slate-100 hover:border-slate-600'
         } ${error ? 'border-rose-500 ring-1 ring-rose-500/40' : ''}`}
       >
-        <div className="flex items-center gap-2 truncate">
+        <div className="flex min-w-0 items-center gap-2">
           {selectedOption?.icon}
           <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
           {selectedOption?.badge && <div className="ml-auto flex-shrink-0">{selectedOption.badge}</div>}
         </div>
-        <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`h-4 w-4 flex-shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
       </button>
 
-      {isOpen && (
-        <ul
-          role="listbox"
-          tabIndex={-1}
-          className="absolute z-50 top-[100%] left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-slate-900 border border-slate-700 rounded-lg shadow-2xl py-1 text-sm text-slate-100 focus:outline-none scrollbar-thin scrollbar-thumb-slate-700"
-        >
-          {options.map((option) => {
-            const isSelected = option.value === value;
-            return (
-              <li
-                key={String(option.value)}
-                role="option"
-                aria-selected={isSelected}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                className={`flex items-center justify-between px-3.5 py-2.5 cursor-pointer transition-colors ${
-                  isSelected ? 'bg-cyan-950/80 text-cyan-200 font-medium' : 'hover:bg-slate-800/80 text-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  {option.icon}
-                  <span className="truncate">{option.label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {option.badge}
-                  {isSelected && <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {error && <span className="text-xs text-rose-400 font-medium">{error}</span>}
+      {error && <span className="text-xs font-medium text-rose-400">{error}</span>}
+      {menu}
     </div>
   );
 }
