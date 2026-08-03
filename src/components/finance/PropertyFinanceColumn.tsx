@@ -210,7 +210,7 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
             className="w-full mt-1 py-1 rounded border border-dashed border-slate-700 text-[10px] text-emerald-400 font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-0.5"
           >
             <Plus className="w-3 h-3" />
-            <span>+ Add Extra Income</span>
+            <span>Add Extra Income</span>
           </button>
         )}
       </div>
@@ -279,7 +279,7 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
             className="w-full mt-1 py-1 rounded border border-dashed border-slate-700 text-[10px] text-rose-400 font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-0.5"
           >
             <Plus className="w-3 h-3" />
-            <span>+ Add Expense</span>
+            <span>Add Expense</span>
           </button>
         )}
       </div>
