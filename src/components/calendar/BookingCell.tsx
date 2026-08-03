@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CHANNEL_CONFIG } from '../../config/locations';
 import { CellBookingState, getBookingOccupiedNights } from '../../utils/bookingCalculations';
 import { formatCents } from '../../utils/currency';
@@ -14,6 +15,12 @@ interface BookingCellProps {
   isHoveredCell: boolean;
 }
 
+interface TooltipPosition {
+  left: number;
+  top: number;
+  placement: 'above' | 'below';
+}
+
 export function BookingCell({
   propertyId,
   dateStr,
@@ -27,6 +34,7 @@ export function BookingCell({
   const showProvisionalBlock = useDashboardStore((s) => s.userPreferences.showProvisionalBlock);
 
   const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
 
   const { booking, isOccupied, isCheckIn, nightIndex, totalNights } = cellState;
 
@@ -43,6 +51,32 @@ export function BookingCell({
     } else {
       openModal('booking_add', { prefilledPropertyId: propertyId, prefilledDate: dateStr });
     }
+  };
+
+  const showBookingTooltip = (element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    const tooltipWidth = 240;
+    const estimatedTooltipHeight = 150;
+    const viewportPadding = 8;
+    const availableAbove = rect.top - viewportPadding;
+    const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const placement: TooltipPosition['placement'] =
+      availableAbove >= estimatedTooltipHeight || availableAbove >= availableBelow ? 'above' : 'below';
+
+    const centeredLeft = rect.left + rect.width / 2 - tooltipWidth / 2;
+    const maximumLeft = Math.max(viewportPadding, window.innerWidth - tooltipWidth - viewportPadding);
+
+    setTooltipPosition({
+      left: Math.min(Math.max(viewportPadding, centeredLeft), maximumLeft),
+      top: placement === 'above' ? rect.top - viewportPadding : rect.bottom + viewportPadding,
+      placement,
+    });
+    setShowTooltip(true);
+  };
+
+  const hideBookingTooltip = () => {
+    setShowTooltip(false);
+    setTooltipPosition(null);
   };
 
   if (!isOccupied || !booking) {
@@ -106,63 +140,98 @@ export function BookingCell({
   const spanHeight = `calc(var(--calendar-booking-row-height) * ${Math.max(visibleNights.length, 1)})`;
   const compactClass = visibleNights.length <= 2 ? 'booking-span-card--compact' : '';
 
-  return (
-    <div
-      onClick={handleClick}
-      onMouseEnter={() => {
-        setHoveredCell({ propertyId, dateStr });
-        setShowTooltip(true);
-      }}
-      onMouseLeave={() => {
-        setHoveredCell(null);
-        setShowTooltip(false);
-      }}
-      tabIndex={0}
-      role="button"
-      aria-label={`Booking for ${booking.guestName}, ${totalNights} nights, ${formatCents(accommodationTotalCents)}`}
-      className="booking-span-anchor w-[190px] min-w-[160px] h-9 sm:h-10 border-r border-b border-slate-800/70 cursor-pointer relative"
-    >
-      <div
-        className={`booking-span-card ${compactClass} ${channelCfg.colorClass} ${stripeStyle}`}
-        style={{ height: spanHeight }}
-      >
-        <div className="booking-summary-rail">
-          <div className="booking-summary-vertical">
-            <span className="booking-summary-name">{booking.guestName}</span>
-            <strong className="booking-summary-total">{formatCents(accommodationTotalCents)}</strong>
-          </div>
-          <span className={`booking-channel-badge ${channelCfg.badgeClass}`}>
-            {channelCfg.name.slice(0, 3)}
-          </span>
-        </div>
-
-        <div className="booking-night-list">
-          {visibleNights.map((night) => (
-            <div key={night.dateStr} className="booking-night-row">
-              <span className="booking-night-date">{Number(night.dateStr.slice(-2))}</span>
-              <span className="booking-night-rate">{formatCents(accommodationForNight(night))}</span>
+  const tooltip =
+    showTooltip && tooltipPosition && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="booking-span-tooltip fixed z-[1000] w-60 rounded-xl border border-slate-700/90 bg-slate-950 p-3 text-xs text-slate-100 shadow-2xl pointer-events-none animate-fade-in backdrop-blur-md"
+            style={{
+              left: tooltipPosition.left,
+              top: tooltipPosition.top,
+              transform: tooltipPosition.placement === 'above' ? 'translateY(-100%)' : undefined,
+            }}
+          >
+            <div className="mb-1.5 flex items-center justify-between border-b border-slate-800 pb-1.5 font-extrabold">
+              <span className="font-display font-black uppercase tracking-wider text-[#ff3e00]">
+                {booking.guestName}
+              </span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${channelCfg.badgeClass}`}>
+                {channelCfg.name}
+              </span>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="space-y-1 text-[11px] text-slate-300">
+              <div>
+                Dates:{' '}
+                <strong className="text-slate-100">
+                  {booking.checkInDate} → {booking.checkOutDate}
+                </strong>
+              </div>
+              <div>
+                Nightly Rate:{' '}
+                <strong className="font-mono font-bold text-emerald-400">
+                  {formatCents(booking.nightlyRateCents)}
+                </strong>
+              </div>
+              <div>
+                Accommodation Total:{' '}
+                <strong className="font-mono font-bold text-cyan-300">
+                  {formatCents(accommodationTotalCents)}
+                </strong>
+              </div>
+              <div>
+                Status: <strong className="uppercase text-slate-200">{booking.status}</strong>
+              </div>
+              {booking.bookingRef && <div>Ref: {booking.bookingRef}</div>}
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
 
-      {showTooltip && (
-        <div className="booking-span-tooltip absolute z-[80] left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-60 p-3 bg-slate-950 border border-slate-700/90 rounded-xl shadow-2xl text-xs text-slate-100 pointer-events-none animate-fade-in backdrop-blur-md">
-          <div className="flex items-center justify-between font-extrabold border-b border-slate-800 pb-1.5 mb-1.5">
-            <span className="text-[#ff3e00] uppercase font-display font-black tracking-wider">{booking.guestName}</span>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${channelCfg.badgeClass}`}>
-              {channelCfg.name}
+  return (
+    <>
+      <div
+        onClick={handleClick}
+        onMouseEnter={(event) => {
+          setHoveredCell({ propertyId, dateStr });
+          showBookingTooltip(event.currentTarget);
+        }}
+        onMouseLeave={() => {
+          setHoveredCell(null);
+          hideBookingTooltip();
+        }}
+        onFocus={(event) => showBookingTooltip(event.currentTarget)}
+        onBlur={hideBookingTooltip}
+        tabIndex={0}
+        role="button"
+        aria-label={`Booking for ${booking.guestName}, ${totalNights} nights, ${formatCents(accommodationTotalCents)}`}
+        className="booking-span-anchor w-[190px] min-w-[160px] h-9 sm:h-10 border-r border-b border-slate-800/70 cursor-pointer relative"
+      >
+        <div
+          className={`booking-span-card ${compactClass} ${channelCfg.colorClass} ${stripeStyle}`}
+          style={{ height: spanHeight }}
+        >
+          <div className="booking-summary-rail">
+            <div className="booking-summary-vertical">
+              <span className="booking-summary-name">{booking.guestName}</span>
+              <strong className="booking-summary-total">{formatCents(accommodationTotalCents)}</strong>
+            </div>
+            <span className={`booking-channel-badge ${channelCfg.badgeClass}`}>
+              {channelCfg.name.slice(0, 3)}
             </span>
           </div>
-          <div className="space-y-1 text-slate-300 text-[11px]">
-            <div>Dates: <strong className="text-slate-100">{booking.checkInDate} → {booking.checkOutDate}</strong></div>
-            <div>Nightly Rate: <strong className="text-emerald-400 font-mono font-bold">{formatCents(booking.nightlyRateCents)}</strong></div>
-            <div>Accommodation Total: <strong className="text-cyan-300 font-mono font-bold">{formatCents(accommodationTotalCents)}</strong></div>
-            <div>Status: <strong className="uppercase text-slate-200">{booking.status}</strong></div>
-            {booking.bookingRef && <div>Ref: {booking.bookingRef}</div>}
+
+          <div className="booking-night-list">
+            {visibleNights.map((night) => (
+              <div key={night.dateStr} className="booking-night-row">
+                <span className="booking-night-date">{Number(night.dateStr.slice(-2))}</span>
+                <span className="booking-night-rate">{formatCents(accommodationForNight(night))}</span>
+              </div>
+            ))}
           </div>
         </div>
-      )}
-    </div>
+      </div>
+      {tooltip}
+    </>
   );
 }
