@@ -170,7 +170,7 @@ export function PropertyFinanceMobileSheet() {
               className="w-full py-2 rounded-lg border border-dashed border-slate-700 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-900 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Add Extra Income</span>
+              <span>Add Extra Income</span>
             </button>
           )}
         </div>
@@ -240,7 +240,7 @@ export function PropertyFinanceMobileSheet() {
               className="w-full py-2 rounded-lg border border-dashed border-slate-700 text-rose-400 text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-900 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Add Expense</span>
+              <span>Add Expense</span>
             </button>
           )}
         </div>
