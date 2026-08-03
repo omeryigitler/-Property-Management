@@ -54,7 +54,7 @@ export function DashboardHeader() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#ff3e00] hover:bg-[#e03700] text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-[#ff3e00]/20 hover:scale-[1.02] active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>+ New Booking</span>
+            <span>New Booking</span>
           </button>
 
           {/* Tax Status Badge / Button */}
