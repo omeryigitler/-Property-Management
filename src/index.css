@@ -232,6 +232,142 @@ form[class~="overflow-y-auto"][class~="space-y-5"]::-webkit-scrollbar {
   height: 0;
 }
 
+/* Remove native number steppers everywhere in the application. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Keep every checkbox dark and visually consistent with the dashboard theme. */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  margin: 0;
+  border: 1px solid #475569;
+  border-radius: 3px;
+  background: #020617;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+input[type="checkbox"]::before {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: rotate(-45deg) scale(0);
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+
+input[type="checkbox"]:hover {
+  border-color: #64748b;
+  background: #0f172a;
+}
+
+input[type="checkbox"]:checked {
+  border-color: #06b6d4;
+  background: #06b6d4;
+}
+
+input[type="checkbox"]:checked::before {
+  transform: rotate(-45deg) scale(1);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.22);
+}
+
+input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/*
+ * Operational Schedule & Turnovers uses five equal controls on desktop.
+ * The final checkbox wrapper becomes transparent to the grid so both options
+ * align exactly with the three input fields instead of stacking asymmetrically.
+ */
+form[class~="overflow-y-auto"][class~="space-y-5"]
+  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+}
+
+form[class~="overflow-y-auto"][class~="space-y-5"]
+  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
+  > div {
+  min-width: 0;
+}
+
+form[class~="overflow-y-auto"][class~="space-y-5"]
+  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
+  > div:last-child {
+  display: contents;
+}
+
+form[class~="overflow-y-auto"][class~="space-y-5"]
+  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
+  input[type="time"],
+form[class~="overflow-y-auto"][class~="space-y-5"]
+  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
+  input[type="number"] {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+form[class~="overflow-y-auto"][class~="space-y-5"]
+  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
+  > div:last-child
+  > label {
+  height: 36px;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+form[class~="overflow-y-auto"][class~="space-y-5"]
+  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
+  > div:last-child
+  > label:hover {
+  border-color: #475569;
+  background: #111c2e;
+}
+
+@media (min-width: 640px) {
+  form[class~="overflow-y-auto"][class~="space-y-5"]
+    [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
 @layer utilities {
   /* Custom Scrollbar Styling */
   .custom-scrollbar::-webkit-scrollbar {
