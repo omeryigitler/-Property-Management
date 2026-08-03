@@ -83,7 +83,7 @@ function ProfitCell({
         </span>
         <span className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[9px] font-black uppercase ${statusClass}`}>
           <StatusIcon className="h-2.5 w-2.5" />
-          {isProfit ? 'Kârda' : isLoss ? 'Zararda' : 'Başabaş'}
+          {isProfit ? 'Profitable' : isLoss ? 'Loss' : 'Break-even'}
         </span>
       </div>
 
@@ -93,14 +93,14 @@ function ProfitCell({
         <div className="mt-1 border-t border-slate-800/80 pt-1 text-[9px] font-semibold">
           {hasPreviousData ? (
             <div className="flex items-center justify-between gap-1">
-              <span className="text-slate-500">{previousCents === 0 ? 'Önceki yıl' : formatCents(previousCents)}</span>
+              <span className="text-slate-500">{previousCents === 0 ? 'Previous year' : formatCents(previousCents)}</span>
               <span className={difference >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                 {difference >= 0 ? '+' : ''}{formatCents(difference)}
                 {differencePct !== null ? ` (${differencePct >= 0 ? '+' : ''}${differencePct.toFixed(1)}%)` : ''}
               </span>
             </div>
           ) : (
-            <span className="text-slate-600">Önceki yıl verisi yok</span>
+            <span className="text-slate-600">No previous-year data</span>
           )}
         </div>
       )}
@@ -179,9 +179,9 @@ export function ProfitabilityReport() {
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-cyan-400" />
           <div>
-            <h2 className="font-display text-xs font-black uppercase tracking-widest text-cyan-300">RAPORLAR · KÂRLILIK</h2>
+            <h2 className="font-display text-xs font-black uppercase tracking-widest text-cyan-300">REPORTS · PROFITABILITY</h2>
             <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
-              Vergi ayarlıysa net bakiye, değilse vergi öncesi işletme sonucu kullanılır
+              Uses net balance when tax is configured; otherwise uses the pre-tax operating result
             </p>
           </div>
         </div>
@@ -197,13 +197,13 @@ export function ProfitabilityReport() {
           }`}
         >
           <Scale className="h-3.5 w-3.5" />
-          Önceki Yıl Karşılaştır
+          Compare Previous Year
         </button>
       </div>
 
       <div className="flex w-max min-w-full">
         <div className="dashboard-day-column ledger-report-row sticky left-0 z-10 flex flex-col justify-center border-r border-b border-slate-800 bg-slate-900 p-2">
-          <span className="font-display text-[10px] font-black uppercase tracking-wider text-cyan-300">EV DURUMU</span>
+          <span className="font-display text-[10px] font-black uppercase tracking-wider text-cyan-300">PROPERTY STATUS</span>
           <span className="mt-1 text-[9px] font-semibold text-slate-500">{selectedMonth}/{selectedYear}</span>
         </div>
 
@@ -226,7 +226,7 @@ export function ProfitabilityReport() {
         ))}
 
         <ProfitCell
-          title="PORTFÖY TOPLAMI"
+          title="PORTFOLIO TOTAL"
           currentCents={currentAggregateProfit}
           previousCents={previousAggregateProfit}
           showComparison={comparePreviousYear}

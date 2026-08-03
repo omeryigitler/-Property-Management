@@ -48,7 +48,7 @@ export function SettingsModal() {
             <label className="flex items-center justify-between cursor-pointer p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors">
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-slate-200">Sticky Daily Total Column</span>
-                <span className="text-xs text-slate-400">Keep 'GÜNLÜK TOPLAM' pinned on the right of the grid</span>
+                <span className="text-xs text-slate-400">Keep 'DAILY TOTAL' pinned on the right of the grid</span>
               </div>
               <input
                 type="checkbox"

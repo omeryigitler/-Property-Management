@@ -118,7 +118,7 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
 
       <div className="ledger-rent-row px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/55 overflow-y-auto custom-scrollbar">
         <div className="flex items-center justify-between text-[10px] font-bold text-violet-300 uppercase tracking-wider">
-          <span>RENT / KİRA</span>
+          <span>RENT</span>
           <span className="font-mono">-{formatCents(rentTotalCents)}</span>
         </div>
         {rentExpenses.length > 0 ? (
@@ -285,13 +285,13 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
       </div>
 
       <div className="ledger-total-row p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center overflow-hidden">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TOPLAM GİDER</span>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TOTAL EXPENSES</span>
         <span className="font-mono font-bold text-rose-400">{formatCents(fin.totalExpensesCents)}</span>
       </div>
 
       <div className="ledger-tax-row p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center overflow-hidden">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">HESAPLANAN VERGİLER</span>
+          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">CALCULATED TAXES</span>
           {fin.isTaxConfigured && (
             <button
               type="button"
@@ -313,7 +313,7 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
       </div>
 
       <div className="ledger-balance-row p-2.5 bg-slate-950 border-b border-slate-800 flex flex-col justify-center overflow-hidden">
-        <span className="text-[10px] font-display font-black text-slate-200 uppercase tracking-widest">NET BAKİYE</span>
+        <span className="text-[10px] font-display font-black text-slate-200 uppercase tracking-widest">NET BALANCE</span>
         {fin.isTaxConfigured ? (
           <span className={`font-mono font-black text-sm ${
             (fin.netBalanceCents ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'

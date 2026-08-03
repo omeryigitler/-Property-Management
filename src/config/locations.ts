@@ -53,7 +53,7 @@ export const ALL_PROPERTIES: PropertyConfig[] = LOCATIONS.flatMap((loc) => loc.p
 
 export const DAILY_TOTAL_COLUMN_CONFIG = {
   id: 'daily-total',
-  name: 'GÜNLÜK TOPLAM',
+  name: 'DAILY TOTAL',
   headerColorClass: 'bg-yellow-950/80 text-yellow-300 border-yellow-700/80',
   badgeBgClass: 'bg-yellow-900/60 text-yellow-200 border-yellow-700/60',
 };

@@ -37,19 +37,19 @@ export function FinancialGrid() {
       <div className="sticky left-0 z-30 flex min-h-10 w-screen items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-2 text-xs font-black text-[#ff3e00]">
         <span className="font-display text-sm uppercase tracking-widest">MONTHLY FINANCIAL LEDGER</span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          Takvim ve finans sütunları ortak sabit ölçü kullanır
+          Calendar and financial columns use the same fixed dimensions
         </span>
       </div>
 
       <div className="flex w-max min-w-full items-stretch">
         <div className="dashboard-day-column sticky left-0 z-20 flex flex-col border-r border-slate-800 bg-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-400">
-          <div className="ledger-booking-row flex items-center border-b border-slate-800 p-2 font-display">AYLIK TOPLAM</div>
-          <div className="ledger-rent-row flex items-center border-b border-slate-800 p-2 font-display text-violet-300">KİRA</div>
+          <div className="ledger-booking-row flex items-center border-b border-slate-800 p-2 font-display">MONTHLY TOTAL</div>
+          <div className="ledger-rent-row flex items-center border-b border-slate-800 p-2 font-display text-violet-300">RENT</div>
           <div className="ledger-extra-row flex items-center border-b border-slate-800 p-2 font-display text-emerald-400">EXTRA INCOME</div>
-          <div className="ledger-expenses-row flex items-center border-b border-slate-800 p-2 font-display text-rose-400">DİĞER GİDERLER</div>
-          <div className="ledger-total-row flex items-center border-b border-slate-800 p-2 font-display">TOPLAM GİDER</div>
-          <div className="ledger-tax-row flex items-center border-b border-slate-800 p-2 font-display text-amber-400">HESAPLANAN VERGİLER</div>
-          <div className="ledger-balance-row flex items-center border-b border-slate-800 p-2.5 font-display font-black text-slate-100">NET BAKİYE</div>
+          <div className="ledger-expenses-row flex items-center border-b border-slate-800 p-2 font-display text-rose-400">OTHER EXPENSES</div>
+          <div className="ledger-total-row flex items-center border-b border-slate-800 p-2 font-display">TOTAL EXPENSES</div>
+          <div className="ledger-tax-row flex items-center border-b border-slate-800 p-2 font-display text-amber-400">CALCULATED TAXES</div>
+          <div className="ledger-balance-row flex items-center border-b border-slate-800 p-2.5 font-display font-black text-slate-100">NET BALANCE</div>
         </div>
 
         {ALL_PROPERTIES.map((prop) => (
