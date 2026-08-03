@@ -1,10 +1,12 @@
 import React from 'react';
+import { Lock } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
-import { ALL_PROPERTIES, DAILY_TOTAL_COLUMN_CONFIG } from '../../config/locations';
+import { ALL_PROPERTIES } from '../../config/locations';
 import { calculateAggregatedFinancials } from '../../utils/financeCalculations';
 import { formatCents } from '../../utils/currency';
+import { isRentExpense, sumExpenses } from '../../utils/expenseUtilities';
 import { PropertyFinanceColumn } from './PropertyFinanceColumn';
-import { Lock } from 'lucide-react';
+import { ProfitabilityReport } from './ProfitabilityReport';
 
 export function FinancialGrid() {
   const selectedMonth = useDashboardStore((s) => s.selectedMonth);
@@ -24,32 +26,36 @@ export function FinancialGrid() {
     taxConfig
   );
 
+  const currentExpenses = expenses.filter(
+    (expense) => expense.year === selectedYear && expense.month === selectedMonth
+  );
+  const totalRentCents = sumExpenses(currentExpenses.filter(isRentExpense));
+  const totalOtherExpensesCents = agg.combinedExpenseCents - totalRentCents;
+
   return (
-    <div className="flex flex-col w-full border-t-2 border-[#ff3e00] bg-slate-950 mt-2 select-none">
-      {/* Section Divider Header */}
-      <div className="flex sticky left-0 z-30 bg-slate-900 border-b border-slate-800 px-4 py-2 items-center justify-between text-xs font-black text-[#ff3e00]">
-        <span className="font-display uppercase tracking-widest text-sm">MONTHLY FINANCIAL LEDGER</span>
-        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-          Aligned by property column • Click mobile cells to edit
+    <div className="w-max min-w-full border-t-2 border-[#ff3e00] bg-slate-950 mt-2 select-none">
+      <div className="sticky left-0 z-30 flex min-h-10 w-screen items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-2 text-xs font-black text-[#ff3e00]">
+        <span className="font-display text-sm uppercase tracking-widest">MONTHLY FINANCIAL LEDGER</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          Takvim ve finans sütunları ortak sabit ölçü kullanır
         </span>
       </div>
 
-      {/* Financial Columns Container */}
-      <div className="flex">
-        {/* Left Row Labels Header */}
-        <div className="sticky left-0 z-20 w-20 sm:w-24 min-w-[80px] sm:min-w-[96px] bg-slate-900 border-r border-slate-800 flex flex-col text-[10px] font-black text-slate-400 uppercase tracking-wider">
-          <div className="p-2 border-b border-slate-800 min-h-[44px] flex items-center font-display">AYLIK TOPLAM</div>
-          <div className="p-2 border-b border-slate-800 min-h-[100px] flex items-center text-emerald-400 font-display">EXTRA INCOME</div>
-          <div className="p-2 border-b border-slate-800 min-h-[140px] flex items-center text-rose-400 font-display">EXPENSES</div>
-          <div className="p-2 border-b border-slate-800 min-h-[40px] flex items-center font-display">TOPLAM GİDER</div>
-          <div className="p-2 border-b border-slate-800 min-h-[42px] flex items-center text-amber-400 font-display">HESAPLANAN VERGİLER</div>
-          <div className="p-2.5 border-b border-slate-800 min-h-[48px] flex items-center text-slate-100 font-display font-black">NET BAKİYE</div>
+      <div className="flex w-max min-w-full items-stretch">
+        <div className="dashboard-day-column sticky left-0 z-20 flex flex-col border-r border-slate-800 bg-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-400">
+          <div className="ledger-booking-row flex items-center border-b border-slate-800 p-2 font-display">AYLIK TOPLAM</div>
+          <div className="ledger-rent-row flex items-center border-b border-slate-800 p-2 font-display text-violet-300">KİRA</div>
+          <div className="ledger-extra-row flex items-center border-b border-slate-800 p-2 font-display text-emerald-400">EXTRA INCOME</div>
+          <div className="ledger-expenses-row flex items-center border-b border-slate-800 p-2 font-display text-rose-400">DİĞER GİDERLER</div>
+          <div className="ledger-total-row flex items-center border-b border-slate-800 p-2 font-display">TOPLAM GİDER</div>
+          <div className="ledger-tax-row flex items-center border-b border-slate-800 p-2 font-display text-amber-400">HESAPLANAN VERGİLER</div>
+          <div className="ledger-balance-row flex items-center border-b border-slate-800 p-2.5 font-display font-black text-slate-100">NET BAKİYE</div>
         </div>
 
-        {/* Per-Property Financial Columns */}
         {ALL_PROPERTIES.map((prop) => (
           <div
             key={prop.id}
+            className="dashboard-property-column"
             onClick={() => {
               if (window.innerWidth < 768) {
                 openModal('mobile_property_finance', { propertyId: prop.id });
@@ -60,55 +66,55 @@ export function FinancialGrid() {
           </div>
         ))}
 
-        {/* Final Aggregated Column (GÜNLÜK TOPLAM) */}
-        <div className="w-[120px] min-w-[110px] bg-yellow-950/60 border-r border-slate-800 flex flex-col font-mono text-xs">
-          {/* 1. Monthly Booking Income */}
-          <div className="p-2 border-b border-yellow-800/80 min-h-[44px] flex flex-col justify-center bg-yellow-950/90 font-black text-emerald-300">
-            <span className="text-[9px] font-sans font-bold text-yellow-200/80 uppercase tracking-wider">NET BOOKING</span>
+        <div className="dashboard-total-column flex flex-col border-r border-slate-800 bg-yellow-950/60 font-mono text-xs">
+          <div className="ledger-booking-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/90 p-2 font-black text-emerald-300">
+            <span className="font-sans text-[9px] font-bold uppercase tracking-wider text-yellow-200/80">NET BOOKING</span>
             <span>{formatCents(agg.combinedNetBookingIncomeCents)}</span>
-            <span className="text-[9px] font-mono text-slate-400 font-medium">Gross: {formatCents(agg.combinedGrossBookingIncomeCents)}</span>
+            <span className="text-[9px] font-medium text-slate-400">Gross: {formatCents(agg.combinedGrossBookingIncomeCents)}</span>
           </div>
 
-          {/* 2. Extra Income */}
-          <div className="p-2 border-b border-yellow-800/80 min-h-[100px] flex flex-col justify-center text-emerald-400 font-black">
-            <span className="text-[9px] font-sans font-bold text-yellow-200/80 uppercase tracking-wider">TOTAL EXTRA</span>
+          <div className="ledger-rent-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 p-2 font-black text-violet-300">
+            <span className="font-sans text-[9px] font-bold uppercase tracking-wider text-yellow-200/80">TOTAL RENT</span>
+            <span>-{formatCents(totalRentCents)}</span>
+          </div>
+
+          <div className="ledger-extra-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 p-2 font-black text-emerald-400">
+            <span className="font-sans text-[9px] font-bold uppercase tracking-wider text-yellow-200/80">TOTAL EXTRA</span>
             <span>+{formatCents(agg.combinedExtraIncomeCents)}</span>
           </div>
 
-          {/* 3. Expenses List */}
-          <div className="p-2 border-b border-yellow-800/80 min-h-[140px] flex flex-col justify-center text-rose-300 font-black">
-            <span className="text-[9px] font-sans font-bold text-yellow-200/80 uppercase tracking-wider">TOTAL EXPENSES</span>
-            <span>-{formatCents(agg.combinedExpenseCents)}</span>
+          <div className="ledger-expenses-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 p-2 font-black text-rose-300">
+            <span className="font-sans text-[9px] font-bold uppercase tracking-wider text-yellow-200/80">OTHER EXPENSES</span>
+            <span>-{formatCents(totalOtherExpensesCents)}</span>
           </div>
 
-          {/* 4. Toplam Gider */}
-          <div className="p-2 border-b border-yellow-800/80 min-h-[40px] flex flex-col justify-center bg-yellow-950/90 text-rose-300 font-black">
+          <div className="ledger-total-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/90 p-2 font-black text-rose-300">
             <span>{formatCents(agg.combinedExpenseCents)}</span>
           </div>
 
-          {/* 5. Hesaplanan Vergiler */}
-          <div className="p-2 border-b border-yellow-800/80 min-h-[42px] flex flex-col justify-center bg-yellow-950/90 text-amber-300 font-black">
+          <div className="ledger-tax-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/90 p-2 font-black text-amber-300">
             {agg.isTaxConfigured ? (
               <span>{formatCents(agg.combinedCalculatedTaxesCents)}</span>
             ) : (
-              <span className="text-[9px] text-amber-400 font-sans flex items-center gap-1 font-bold">
-                <Lock className="w-3 h-3" /> Locked
+              <span className="flex items-center gap-1 font-sans text-[9px] font-bold text-amber-400">
+                <Lock className="h-3 w-3" /> Locked
               </span>
             )}
           </div>
 
-          {/* 6. Net Bakiye */}
-          <div className="p-2.5 border-b border-yellow-800/80 min-h-[48px] flex flex-col justify-center bg-yellow-950/95 text-[#ff3e00] font-black text-sm">
+          <div className="ledger-balance-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/95 p-2.5 font-black text-sm">
             {agg.isTaxConfigured ? (
-              <span>{formatCents(agg.combinedNetBalanceCents)}</span>
-            ) : (
-              <span className="text-[9px] text-amber-400 font-sans uppercase font-bold">
-                Configuration Required
+              <span className={(agg.combinedNetBalanceCents ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                {formatCents(agg.combinedNetBalanceCents)}
               </span>
+            ) : (
+              <span className="font-sans text-[9px] font-bold uppercase text-amber-400">Configuration Required</span>
             )}
           </div>
         </div>
       </div>
+
+      <ProfitabilityReport />
     </div>
   );
 }

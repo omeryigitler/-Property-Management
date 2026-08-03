@@ -3,6 +3,7 @@ import { Plus, Info, Lock } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 import { calculatePropertyFinancials } from '../../utils/financeCalculations';
 import { formatCents, eurosToCents } from '../../utils/currency';
+import { isRentExpense, sumExpenses } from '../../utils/expenseUtilities';
 import { FinanceLineItem } from './FinanceLineItem';
 
 interface PropertyFinanceColumnProps {
@@ -48,6 +49,10 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
   const propertyExpenses = expenses.filter(
     (e) => e.propertyId === propertyId && e.year === selectedYear && e.month === selectedMonth
   );
+  const rentExpenses = propertyExpenses.filter(isRentExpense);
+  const otherExpenses = propertyExpenses.filter((expense) => !isRentExpense(expense));
+  const rentTotalCents = sumExpenses(rentExpenses);
+  const otherExpensesTotalCents = sumExpenses(otherExpenses);
 
   const propertyExtraIncomes = extraIncomes.filter(
     (e) => e.propertyId === propertyId && e.year === selectedYear && e.month === selectedMonth
@@ -69,6 +74,20 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
     setShowAddExp(false);
   };
 
+  const handleAddRent = () => {
+    addExpense({
+      propertyId,
+      year: selectedYear,
+      month: selectedMonth,
+      label: 'Rent',
+      amountCents: 0,
+      category: 'Rent',
+      isDeductible: true,
+      notes: 'Monthly property rent',
+      isRecurring: true,
+    });
+  };
+
   const handleSaveExtraIncome = () => {
     if (!newExtLabel.trim()) return;
     addExtraIncome({
@@ -85,9 +104,8 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
   };
 
   return (
-    <div className="w-[190px] min-w-[160px] border-r border-slate-800 flex flex-col bg-slate-900/40 text-xs">
-      {/* 1. AYLIK TOPLAM (Monthly Booking Income) Row */}
-      <div className="p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center min-h-[44px]">
+    <div className="dashboard-property-column border-r border-slate-800 flex flex-col bg-slate-900/40 text-xs">
+      <div className="ledger-booking-row p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center overflow-hidden">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NET BOOKING</span>
           <span className="text-[10px] text-amber-400 font-mono">-{formatCents(fin.otaCommissionCents)}</span>
@@ -98,14 +116,46 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
         <span className="text-[9px] text-slate-500 font-mono">Gross: {formatCents(fin.grossBookingIncomeCents)}</span>
       </div>
 
-      {/* 2. Extra Incomes Section */}
-      <div className="p-2 border-b border-slate-800/80 space-y-1 bg-slate-950/40">
+      <div className="ledger-rent-row px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/55 overflow-y-auto custom-scrollbar">
+        <div className="flex items-center justify-between text-[10px] font-bold text-violet-300 uppercase tracking-wider">
+          <span>RENT / KİRA</span>
+          <span className="font-mono">-{formatCents(rentTotalCents)}</span>
+        </div>
+        {rentExpenses.length > 0 ? (
+          <div className="mt-0.5">
+            {rentExpenses.map((item) => (
+              <FinanceLineItem
+                key={item.id}
+                id={item.id}
+                label={item.label}
+                amountCents={item.amountCents}
+                isDeductible={item.isDeductible}
+                onUpdate={(id, lbl, cents, ded) =>
+                  updateExpense(id, { label: lbl, amountCents: cents, isDeductible: ded })
+                }
+                onDelete={(id) => deleteExpense(id)}
+                type="expense"
+              />
+            ))}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAddRent}
+            className="mt-1 w-full py-0.5 rounded border border-dashed border-violet-800 text-[9px] text-violet-300 font-bold hover:bg-violet-950/50 transition-colors"
+          >
+            + Add Rent
+          </button>
+        )}
+      </div>
+
+      <div className="ledger-extra-row p-2 border-b border-slate-800/80 bg-slate-950/40 overflow-y-auto custom-scrollbar">
         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-400">
           <span>EXTRA INCOME</span>
           <span className="font-mono text-emerald-300">+{formatCents(fin.extraIncomeCents)}</span>
         </div>
 
-        <div className="space-y-0.5">
+        <div className="space-y-0.5 mt-1">
           {propertyExtraIncomes.map((item) => (
             <FinanceLineItem
               key={item.id}
@@ -165,15 +215,14 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
         )}
       </div>
 
-      {/* 3. Expenses Section (Default Rent & Cleaning + Custom) */}
-      <div className="p-2 border-b border-slate-800/80 space-y-1 bg-slate-950/40">
+      <div className="ledger-expenses-row p-2 border-b border-slate-800/80 bg-slate-950/40 overflow-y-auto custom-scrollbar">
         <div className="flex items-center justify-between text-[11px] font-bold text-rose-400">
-          <span>EXPENSES</span>
-          <span className="font-mono text-rose-300">-{formatCents(fin.totalExpensesCents)}</span>
+          <span>OTHER EXPENSES</span>
+          <span className="font-mono text-rose-300">-{formatCents(otherExpensesTotalCents)}</span>
         </div>
 
-        <div className="space-y-0.5">
-          {propertyExpenses.map((item) => (
+        <div className="space-y-0.5 mt-1">
+          {otherExpenses.map((item) => (
             <FinanceLineItem
               key={item.id}
               id={item.id}
@@ -235,14 +284,12 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
         )}
       </div>
 
-      {/* 4. TOPLAM GİDER Summary Row */}
-      <div className="p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center min-h-[40px]">
+      <div className="ledger-total-row p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center overflow-hidden">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TOPLAM GİDER</span>
         <span className="font-mono font-bold text-rose-400">{formatCents(fin.totalExpensesCents)}</span>
       </div>
 
-      {/* 5. HESAPLANAN VERGİLER Summary Row */}
-      <div className="p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center min-h-[42px]">
+      <div className="ledger-tax-row p-2 bg-slate-900/90 border-b border-slate-800 flex flex-col justify-center overflow-hidden">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">HESAPLANAN VERGİLER</span>
           {fin.isTaxConfigured && (
@@ -265,11 +312,14 @@ export function PropertyFinanceColumn({ propertyId }: PropertyFinanceColumnProps
         )}
       </div>
 
-      {/* 6. NET BAKİYE Summary Row */}
-      <div className="p-2.5 bg-slate-950 border-b border-slate-800 flex flex-col justify-center min-h-[48px]">
+      <div className="ledger-balance-row p-2.5 bg-slate-950 border-b border-slate-800 flex flex-col justify-center overflow-hidden">
         <span className="text-[10px] font-display font-black text-slate-200 uppercase tracking-widest">NET BAKİYE</span>
         {fin.isTaxConfigured ? (
-          <span className="font-mono font-black text-[#ff3e00] text-sm">{formatCents(fin.netBalanceCents)}</span>
+          <span className={`font-mono font-black text-sm ${
+            (fin.netBalanceCents ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+          }`}>
+            {formatCents(fin.netBalanceCents)}
+          </span>
         ) : (
           <span className="text-[10px] font-bold text-amber-400 uppercase tracking-tight">
             Configuration Required

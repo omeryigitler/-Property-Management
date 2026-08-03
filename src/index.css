@@ -19,6 +19,57 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
+/*
+ * Calendar and ledger dimensions are intentionally centralized here.
+ * Every upper and lower grid cell consumes exactly the same fixed basis,
+ * preventing independent flex shrinking and cross-section drift.
+ */
+.dashboard-day-column {
+  width: 96px;
+  min-width: 96px;
+  flex: 0 0 96px;
+}
+
+.dashboard-property-column {
+  width: 190px;
+  min-width: 190px;
+  flex: 0 0 190px;
+}
+
+.dashboard-total-column {
+  width: 120px;
+  min-width: 120px;
+  flex: 0 0 120px;
+}
+
+/* Existing calendar cells keep their current markup but are locked to the same basis. */
+[class~="w-[190px]"][class~="min-w-[160px]"] {
+  width: 190px !important;
+  min-width: 190px !important;
+  flex: 0 0 190px !important;
+}
+
+[class~="w-[120px]"][class~="min-w-[110px]"] {
+  width: 120px !important;
+  min-width: 120px !important;
+  flex: 0 0 120px !important;
+}
+
+[class~="w-20"][class~="min-w-[80px]"] {
+  width: 96px !important;
+  min-width: 96px !important;
+  flex: 0 0 96px !important;
+}
+
+.ledger-booking-row { height: 58px; min-height: 58px; }
+.ledger-rent-row { height: 54px; min-height: 54px; }
+.ledger-extra-row { height: 124px; min-height: 124px; }
+.ledger-expenses-row { height: 176px; min-height: 176px; }
+.ledger-total-row { height: 48px; min-height: 48px; }
+.ledger-tax-row { height: 52px; min-height: 52px; }
+.ledger-balance-row { height: 58px; min-height: 58px; }
+.ledger-report-row { height: 98px; min-height: 98px; }
+
 @layer utilities {
   /* Custom Scrollbar Styling */
   .custom-scrollbar::-webkit-scrollbar {
