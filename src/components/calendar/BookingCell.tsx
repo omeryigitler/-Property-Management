@@ -18,7 +18,6 @@ interface BookingCellProps {
 interface TooltipPosition {
   left: number;
   top: number;
-  placement: 'above' | 'below';
 }
 
 export function BookingCell({
@@ -54,22 +53,16 @@ export function BookingCell({
   };
 
   const showBookingTooltip = (element: HTMLElement) => {
-    const rect = element.getBoundingClientRect();
+    const bookingCard = element.querySelector<HTMLElement>('.booking-span-card');
+    const rect = bookingCard?.getBoundingClientRect() ?? element.getBoundingClientRect();
     const tooltipWidth = 240;
-    const estimatedTooltipHeight = 150;
     const viewportPadding = 8;
-    const availableAbove = rect.top - viewportPadding;
-    const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
-    const placement: TooltipPosition['placement'] =
-      availableAbove >= estimatedTooltipHeight || availableAbove >= availableBelow ? 'above' : 'below';
-
     const centeredLeft = rect.left + rect.width / 2 - tooltipWidth / 2;
     const maximumLeft = Math.max(viewportPadding, window.innerWidth - tooltipWidth - viewportPadding);
 
     setTooltipPosition({
       left: Math.min(Math.max(viewportPadding, centeredLeft), maximumLeft),
-      top: placement === 'above' ? rect.top - viewportPadding : rect.bottom + viewportPadding,
-      placement,
+      top: rect.bottom + viewportPadding,
     });
     setShowTooltip(true);
   };
@@ -148,7 +141,6 @@ export function BookingCell({
             style={{
               left: tooltipPosition.left,
               top: tooltipPosition.top,
-              transform: tooltipPosition.placement === 'above' ? 'translateY(-100%)' : undefined,
             }}
           >
             <div className="mb-1.5 flex items-center justify-between border-b border-slate-800 pb-1.5 font-extrabold">
