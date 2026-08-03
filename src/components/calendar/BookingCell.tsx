@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { CHANNEL_CONFIG } from '../../config/locations';
-import { Booking } from '../../types';
-import { CellBookingState } from '../../utils/bookingCalculations';
+import { CellBookingState, getBookingOccupiedNights } from '../../utils/bookingCalculations';
 import { formatCents } from '../../utils/currency';
 import { useDashboardStore } from '../../store/useDashboardStore';
+import './booking-span.css';
 
 interface BookingCellProps {
   propertyId: string;
@@ -30,7 +30,6 @@ export function BookingCell({
 
   const { booking, isOccupied, isCheckIn, isCheckOut, nightIndex, totalNights } = cellState;
 
-  // Background state for empty cells
   let bgClass = 'bg-slate-950/40 hover:bg-slate-800/60';
   if (isHoveredCell) {
     bgClass = 'bg-[#ff3e00]/20 ring-1 ring-[#ff3e00] z-10';
@@ -69,14 +68,48 @@ export function BookingCell({
     );
   }
 
-  // Booked Cell Styling
   const channelCfg = CHANNEL_CONFIG[booking.channel] || CHANNEL_CONFIG.airbnb;
   const isProvisional = booking.status === 'provisional';
-
   const stripeStyle =
     isProvisional && showProvisionalBlock
       ? 'bg-[linear-gradient(45deg,rgba(0,0,0,0.3)_25%,transparent_25%,transparent_50%,rgba(0,0,0,0.3)_50%,rgba(0,0,0,0.3)_75%,transparent_75%,transparent)] bg-[length:12px_12px]'
       : '';
+
+  const occupiedNights = getBookingOccupiedNights(booking);
+  const visibleMonthPrefix = dateStr.slice(0, 7);
+  const isFirstVisibleDayOfMonth = dateStr.endsWith('-01');
+  const isSpanAnchor = isCheckIn || (isFirstVisibleDayOfMonth && nightIndex > 1);
+  const visibleNights = occupiedNights.filter(
+    (night) => night.dateStr >= dateStr && night.dateStr.startsWith(visibleMonthPrefix)
+  );
+
+  const accommodationForNight = (night: (typeof occupiedNights)[number]) =>
+    Math.max(
+      0,
+      night.allocatedRevenueCents - (night.nightIndex === 1 ? booking.cleaningFeeCents || 0 : 0)
+    );
+
+  const accommodationTotalCents = occupiedNights.reduce(
+    (total, night) => total + accommodationForNight(night),
+    0
+  );
+
+  if (!isSpanAnchor) {
+    return (
+      <div
+        onClick={handleClick}
+        onMouseEnter={() => setHoveredCell({ propertyId, dateStr })}
+        onMouseLeave={() => setHoveredCell(null)}
+        tabIndex={0}
+        role="button"
+        aria-label={`Booking for ${booking.guestName}, night ${nightIndex} of ${totalNights}`}
+        className="booking-span-continuation w-[190px] min-w-[160px] h-9 sm:h-10 border-r border-b border-slate-800/70 cursor-pointer relative"
+      />
+    );
+  }
+
+  const spanHeight = `calc(var(--calendar-booking-row-height) * ${Math.max(visibleNights.length, 1)})`;
+  const compactClass = visibleNights.length <= 2 ? 'booking-span-card--compact' : '';
 
   return (
     <div
@@ -91,39 +124,35 @@ export function BookingCell({
       }}
       tabIndex={0}
       role="button"
-      aria-label={`Booking for ${booking.guestName}, night ${nightIndex} of ${totalNights}`}
-      className={`w-[190px] min-w-[160px] h-9 sm:h-10 border-r border-b border-slate-800/70 px-2 cursor-pointer relative flex items-center transition-all ${channelCfg.colorClass} ${stripeStyle}`}
+      aria-label={`Booking for ${booking.guestName}, ${totalNights} nights, ${formatCents(accommodationTotalCents)}`}
+      className="booking-span-anchor w-[190px] min-w-[160px] h-9 sm:h-10 border-r border-b border-slate-800/70 cursor-pointer relative"
     >
-      {/* Night Indicator Bar on left edge */}
       <div
-        className={`absolute left-0 top-0 bottom-0 w-1 ${
-          isCheckIn ? 'bg-[#ff3e00]' : 'bg-slate-600/50'
-        }`}
-      />
-
-      {/* Content */}
-      <div className="flex items-center justify-between w-full pl-1 truncate text-xs">
-        {isCheckIn ? (
-          <div className="flex items-center gap-1.5 truncate">
-            <span className="font-black truncate text-white uppercase tracking-tight">{booking.guestName}</span>
-            <span className="px-1 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-black/50 text-slate-100">
-              {channelCfg.name.slice(0, 3)}
-            </span>
+        className={`booking-span-card ${compactClass} ${channelCfg.colorClass} ${stripeStyle}`}
+        style={{ height: spanHeight }}
+      >
+        <div className="booking-summary-rail">
+          <div className="booking-summary-vertical">
+            <span className="booking-summary-name">{booking.guestName}</span>
+            <strong className="booking-summary-total">{formatCents(accommodationTotalCents)}</strong>
           </div>
-        ) : (
-          <div className="flex items-center gap-1 text-[11px] text-slate-200/90 font-bold truncate">
-            <span>↳ {booking.guestName}</span>
-          </div>
-        )}
+          <span className={`booking-channel-badge ${channelCfg.badgeClass}`}>
+            {channelCfg.name.slice(0, 3)}
+          </span>
+        </div>
 
-        <div className="flex items-center gap-1 flex-shrink-0 ml-1 text-[10px] font-mono font-bold opacity-90">
-          <span>{nightIndex}/{totalNights}</span>
+        <div className="booking-night-list">
+          {visibleNights.map((night) => (
+            <div key={night.dateStr} className="booking-night-row">
+              <span className="booking-night-date">{Number(night.dateStr.slice(-2))}</span>
+              <span className="booking-night-rate">{formatCents(accommodationForNight(night))}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Detailed Tooltip on Hover */}
       {showTooltip && (
-        <div className="absolute z-50 left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-60 p-3 bg-slate-950 border border-slate-700/90 rounded-xl shadow-2xl text-xs text-slate-100 pointer-events-none animate-fade-in backdrop-blur-md">
+        <div className="booking-span-tooltip absolute z-[80] left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-60 p-3 bg-slate-950 border border-slate-700/90 rounded-xl shadow-2xl text-xs text-slate-100 pointer-events-none animate-fade-in backdrop-blur-md">
           <div className="flex items-center justify-between font-extrabold border-b border-slate-800 pb-1.5 mb-1.5">
             <span className="text-[#ff3e00] uppercase font-display font-black tracking-wider">{booking.guestName}</span>
             <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${channelCfg.badgeClass}`}>
@@ -133,7 +162,7 @@ export function BookingCell({
           <div className="space-y-1 text-slate-300 text-[11px]">
             <div>Dates: <strong className="text-slate-100">{booking.checkInDate} → {booking.checkOutDate}</strong></div>
             <div>Nightly Rate: <strong className="text-emerald-400 font-mono font-bold">{formatCents(booking.nightlyRateCents)}</strong></div>
-            <div>Night Position: <strong>Night {nightIndex} of {totalNights}</strong></div>
+            <div>Accommodation Total: <strong className="text-cyan-300 font-mono font-bold">{formatCents(accommodationTotalCents)}</strong></div>
             <div>Status: <strong className="uppercase text-slate-200">{booking.status}</strong></div>
             {booking.bookingRef && <div>Ref: {booking.bookingRef}</div>}
           </div>

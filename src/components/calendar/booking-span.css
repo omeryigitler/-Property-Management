@@ -1,0 +1,199 @@
+:root {
+  --calendar-booking-row-height: 36px;
+}
+
+.booking-span-anchor {
+  overflow: visible !important;
+  isolation: isolate;
+  z-index: 30;
+}
+
+.booking-span-continuation {
+  background: transparent !important;
+  overflow: hidden !important;
+  z-index: 1;
+}
+
+.booking-span-card {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 40;
+  width: 190px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  overflow: hidden;
+  border-width: 1px;
+  border-style: solid;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.42);
+}
+
+.booking-summary-rail {
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-right: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(2, 6, 23, 0.32);
+}
+
+.booking-summary-vertical {
+  max-height: calc(100% - 34px);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: center;
+}
+
+.booking-summary-name,
+.booking-summary-total {
+  max-height: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-summary-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  color: #f8fafc;
+}
+
+.booking-summary-total {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.booking-channel-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  max-width: calc(100% - 12px);
+  transform: translateX(-50%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 7px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.booking-night-list {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(2, 6, 23, 0.12);
+}
+
+.booking-night-row {
+  height: var(--calendar-booking-row-height);
+  min-height: var(--calendar-booking-row-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  padding: 0 10px;
+}
+
+.booking-night-row:last-child {
+  border-bottom: 0;
+}
+
+.booking-night-date {
+  flex: 0 0 auto;
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.booking-night-rate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.booking-span-card--compact {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.booking-span-card--compact .booking-summary-vertical {
+  width: calc(100% - 10px);
+  max-height: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  writing-mode: horizontal-tb;
+  transform: none;
+}
+
+.booking-span-card--compact .booking-summary-name,
+.booking-span-card--compact .booking-summary-total {
+  max-width: 100%;
+  height: auto;
+  font-size: 8px;
+}
+
+.booking-span-card--compact .booking-channel-badge {
+  display: none;
+}
+
+.booking-span-tooltip {
+  max-width: min(240px, calc(100vw - 16px));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --calendar-booking-row-height: 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  .booking-span-card {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .booking-span-card--compact {
+    grid-template-columns: 66px minmax(0, 1fr);
+  }
+
+  .booking-summary-name {
+    font-size: 9px;
+  }
+
+  .booking-summary-total {
+    font-size: 10px;
+  }
+
+  .booking-night-row {
+    gap: 5px;
+    padding: 0 7px;
+  }
+
+  .booking-night-date,
+  .booking-night-rate {
+    font-size: 10px;
+  }
+}
