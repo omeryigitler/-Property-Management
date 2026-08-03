@@ -14,10 +14,13 @@ import { PropertyFinanceMobileSheet } from './finance/PropertyFinanceMobileSheet
 
 import { ConfirmationModal } from './common/ConfirmationModal';
 import { ToastContainer } from './common/ToastContainer';
+import { NativeSelectEnhancer } from './common/NativeSelectEnhancer';
 
 export function AppShell() {
   return (
     <div className="w-full h-[100dvh] flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans select-none antialiased">
+      <NativeSelectEnhancer />
+
       {/* Top Header Controls & Month Navigator */}
       <DashboardHeader />
 
