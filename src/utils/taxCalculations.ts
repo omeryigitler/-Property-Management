@@ -5,9 +5,13 @@ export interface MissingTaxField {
   label: string;
 }
 
+function isMissingRate(value: number | null | undefined): boolean {
+  return value == null || !Number.isFinite(value) || value < 0;
+}
+
 /**
- * Checks whether tax configuration is complete.
- * Values that are null, undefined, or <= 0 count as missing.
+ * Checks whether all required tax values were explicitly configured.
+ * Zero is a valid configured value; only missing, non-finite or negative values are rejected.
  */
 export function getMissingTaxFields(config: TaxConfiguration | null | undefined): MissingTaxField[] {
   if (!config) {
@@ -21,16 +25,16 @@ export function getMissingTaxFields(config: TaxConfiguration | null | undefined)
 
   const missing: MissingTaxField[] = [];
 
-  if (config.accommodationVatRate == null || config.accommodationVatRate <= 0) {
+  if (isMissingRate(config.accommodationVatRate)) {
     missing.push({ key: 'accommodationVatRate', label: 'Accommodation VAT Rate' });
   }
-  if (config.standardVatRate == null || config.standardVatRate <= 0) {
+  if (isMissingRate(config.standardVatRate)) {
     missing.push({ key: 'standardVatRate', label: 'Standard VAT Rate' });
   }
-  if (config.incomeTaxRate == null || config.incomeTaxRate <= 0) {
+  if (isMissingRate(config.incomeTaxRate)) {
     missing.push({ key: 'incomeTaxRate', label: 'Income Tax Rate' });
   }
-  if (config.ecoContributionCents == null || config.ecoContributionCents <= 0) {
+  if (isMissingRate(config.ecoContributionCents)) {
     missing.push({ key: 'ecoContributionCents', label: 'Eco Contribution / City Tax' });
   }
 
@@ -82,26 +86,24 @@ export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculation
     config,
   } = input;
 
-  const accRate = (config.accommodationVatRate || 0) / 100;
-  const stdRate = (config.standardVatRate || 0) / 100;
-  const incRate = (config.incomeTaxRate || 0) / 100;
+  const accommodationRate = (config.accommodationVatRate || 0) / 100;
+  const standardRate = (config.standardVatRate || 0) / 100;
+  const incomeRate = (config.incomeTaxRate || 0) / 100;
 
-  const totalAccBase = bookingIncomeCents + (extraIncomeByTreatment.accommodation_vat || 0);
+  const accommodationBaseCents =
+    Math.max(0, bookingIncomeCents) + (extraIncomeByTreatment.accommodation_vat || 0);
+  const accommodationVatCents =
+    config.vatInclusivity === 'inclusive'
+      ? Math.round(
+          accommodationBaseCents - accommodationBaseCents / (1 + accommodationRate)
+        )
+      : Math.round(accommodationBaseCents * accommodationRate);
 
-  let accommodationVatCents = 0;
-  if (config.vatInclusivity === 'inclusive') {
-    accommodationVatCents = Math.round(totalAccBase - totalAccBase / (1 + accRate));
-  } else {
-    accommodationVatCents = Math.round(totalAccBase * accRate);
-  }
-
-  const stdExtraBase = extraIncomeByTreatment.standard_vat || 0;
-  let standardVatCents = 0;
-  if (config.vatInclusivity === 'inclusive') {
-    standardVatCents = Math.round(stdExtraBase - stdExtraBase / (1 + stdRate));
-  } else {
-    standardVatCents = Math.round(stdExtraBase * stdRate);
-  }
+  const standardBaseCents = extraIncomeByTreatment.standard_vat || 0;
+  const standardVatCents =
+    config.vatInclusivity === 'inclusive'
+      ? Math.round(standardBaseCents - standardBaseCents / (1 + standardRate))
+      : Math.round(standardBaseCents * standardRate);
 
   const ecoPerUnitCents = config.ecoContributionCents || 0;
   let ecoContributionCents = 0;
@@ -133,8 +135,7 @@ export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculation
   }
 
   taxableBaseCents = Math.max(0, taxableBaseCents);
-  const incomeTaxCents = Math.round(taxableBaseCents * incRate);
-
+  const incomeTaxCents = Math.round(taxableBaseCents * incomeRate);
   const calculatedTaxesCents =
     accommodationVatCents + standardVatCents + ecoContributionCents + incomeTaxCents;
   const netBalanceCents =
