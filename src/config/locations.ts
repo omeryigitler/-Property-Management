@@ -8,9 +8,9 @@ export const LOCATIONS: LocationConfig[] = [
     badgeBgClass: 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60',
     borderClass: 'border-emerald-800/60',
     properties: [
-      { id: '1-the-olive', name: '1 THE OLIVE', locationId: 'st-julians' },
-      { id: '8-the-olive', name: '8 THE OLIVE', locationId: 'st-julians' },
-      { id: 'the-hollies', name: 'THE HOLLIES', locationId: 'st-julians' },
+      { id: '1-the-olive', name: '1 THE OLIVE', locationId: 'st-julians', active: true },
+      { id: '8-the-olive', name: '8 THE OLIVE', locationId: 'st-julians', active: true },
+      { id: 'the-hollies', name: 'THE HOLLIES', locationId: 'st-julians', active: true },
     ],
   },
   {
@@ -20,10 +20,10 @@ export const LOCATIONS: LocationConfig[] = [
     badgeBgClass: 'bg-cyan-900/60 text-cyan-200 border-cyan-700/60',
     borderClass: 'border-cyan-800/60',
     properties: [
-      { id: '1-meridian', name: '1 MERIDIAN', locationId: 'gzira' },
-      { id: '2-meridian', name: '2 MERIDIAN', locationId: 'gzira' },
-      { id: 'mariott', name: 'MARIOTT', locationId: 'gzira' },
-      { id: 'albert', name: 'ALBERT', locationId: 'gzira' },
+      { id: '1-meridian', name: '1 MERIDIAN', locationId: 'gzira', active: true },
+      { id: '2-meridian', name: '2 MERIDIAN', locationId: 'gzira', active: true },
+      { id: 'mariott', name: 'MARIOTT', locationId: 'gzira', active: true },
+      { id: 'albert', name: 'ALBERT', locationId: 'gzira', active: true },
     ],
   },
   {
@@ -33,8 +33,8 @@ export const LOCATIONS: LocationConfig[] = [
     badgeBgClass: 'bg-amber-900/60 text-amber-200 border-amber-700/60',
     borderClass: 'border-amber-800/60',
     properties: [
-      { id: '1-penthouse', name: '1 PENTHOUSE', locationId: 'msida' },
-      { id: '2-penthouse', name: '2 PENTHOUSE', locationId: 'msida' },
+      { id: '1-penthouse', name: '1 PENTHOUSE', locationId: 'msida', active: true },
+      { id: '2-penthouse', name: '2 PENTHOUSE', locationId: 'msida', active: true },
     ],
   },
   {
@@ -44,12 +44,17 @@ export const LOCATIONS: LocationConfig[] = [
     badgeBgClass: 'bg-purple-900/60 text-purple-200 border-purple-700/60',
     borderClass: 'border-purple-800/60',
     properties: [
-      { id: 'sky', name: 'SKY', locationId: 'sliema' },
+      { id: 'sky', name: 'SKY', locationId: 'sliema', active: true },
     ],
   },
 ];
 
 export const ALL_PROPERTIES: PropertyConfig[] = LOCATIONS.flatMap((loc) => loc.properties);
+
+export const DEFAULT_PROPERTIES: PropertyConfig[] = ALL_PROPERTIES.map((property) => ({
+  ...property,
+  active: property.active !== false,
+}));
 
 export const DAILY_TOTAL_COLUMN_CONFIG = {
   id: 'daily-total',
