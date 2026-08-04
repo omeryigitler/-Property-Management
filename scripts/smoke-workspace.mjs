@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
+import path from 'node:path';
 
 const port = 4317;
 const baseUrl = `http://127.0.0.1:${port}`;
 const output = [];
+const maxJavaScriptChunkBytes = 500 * 1024;
 
 const server = spawn(process.execPath, ['server.mjs'], {
   env: { ...process.env, PORT: String(port) },
@@ -46,6 +48,26 @@ async function assertResponse(pathname, description) {
   return response;
 }
 
+async function verifyChunkSizes() {
+  const assetsDirectory = path.join('dist', 'assets');
+  const assetNames = await readdir(assetsDirectory);
+  const oversizedChunks = [];
+
+  for (const assetName of assetNames) {
+    if (!assetName.endsWith('.js')) continue;
+    const assetStats = await stat(path.join(assetsDirectory, assetName));
+    if (assetStats.size > maxJavaScriptChunkBytes) {
+      oversizedChunks.push(`${assetName} (${(assetStats.size / 1024).toFixed(1)} KiB)`);
+    }
+  }
+
+  if (oversizedChunks.length > 0) {
+    throw new Error(
+      `JavaScript chunks exceed 500 KiB:\n${oversizedChunks.map((item) => `- ${item}`).join('\n')}`
+    );
+  }
+}
+
 try {
   await waitForServer();
 
@@ -74,6 +96,8 @@ try {
   for (const assetPath of assetPaths) {
     await assertResponse(assetPath, 'Compiled asset');
   }
+
+  await verifyChunkSizes();
 
   const fallbackResponse = await assertResponse('/reports/deep-link', 'SPA fallback');
   const fallbackHtml = await fallbackResponse.text();
