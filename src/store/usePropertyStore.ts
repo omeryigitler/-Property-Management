@@ -3,6 +3,7 @@ import { ALL_PROPERTIES, DEFAULT_PROPERTIES, LOCATIONS } from '../config/locatio
 import { PropertyConfig } from '../types';
 
 const STORAGE_KEY = 'short_let_properties_v1';
+const LOCATION_ORDER = new Map(LOCATIONS.map((location, index) => [location.id, index]));
 let activeCacheSource: PropertyConfig[] | null = null;
 let activeCacheResult: PropertyConfig[] = [];
 
@@ -18,8 +19,21 @@ function normalizeProperty(property: Partial<PropertyConfig>): PropertyConfig | 
   };
 }
 
+function orderActiveProperties(properties: PropertyConfig[]): PropertyConfig[] {
+  return properties
+    .filter((property) => property.active !== false)
+    .map((property, index) => ({ property, index }))
+    .sort((a, b) => {
+      const locationDifference =
+        (LOCATION_ORDER.get(a.property.locationId) ?? 999) -
+        (LOCATION_ORDER.get(b.property.locationId) ?? 999);
+      return locationDifference !== 0 ? locationDifference : a.index - b.index;
+    })
+    .map(({ property }) => property);
+}
+
 function synchronizeLegacyCatalog(properties: PropertyConfig[]) {
-  const activeProperties = properties.filter((property) => property.active !== false);
+  const activeProperties = orderActiveProperties(properties);
   ALL_PROPERTIES.splice(0, ALL_PROPERTIES.length, ...activeProperties);
   for (const location of LOCATIONS) {
     location.properties.splice(
@@ -161,6 +175,6 @@ export const usePropertyStore = create<PropertyStoreState>((set, get) => ({
 export function getActiveProperties(properties: PropertyConfig[]): PropertyConfig[] {
   if (activeCacheSource === properties) return activeCacheResult;
   activeCacheSource = properties;
-  activeCacheResult = properties.filter((property) => property.active !== false);
+  activeCacheResult = orderActiveProperties(properties);
   return activeCacheResult;
 }
