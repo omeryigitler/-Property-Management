@@ -5,6 +5,7 @@ import {
   Database,
   Download,
   LayoutDashboard,
+  MapPin,
   Plus,
   RotateCcw,
   Save,
@@ -17,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 import { getActiveProperties, usePropertyStore } from '../../store/usePropertyStore';
-import { LOCATIONS } from '../../config/locations';
 import { PropertyConfig } from '../../types';
 import { CustomSelect } from '../common/CustomSelect';
 import { eurosToCents } from '../../utils/currency';
@@ -46,6 +46,7 @@ function PropertyEditorCard({
   property: PropertyConfig;
   onSaved: (property: PropertyConfig) => void;
 }) {
+  const locations = usePropertyStore((state) => state.locations);
   const updateProperty = usePropertyStore((state) => state.updateProperty);
   const [name, setName] = useState(property.name);
   const [locationId, setLocationId] = useState(property.locationId);
@@ -57,13 +58,18 @@ function PropertyEditorCard({
     setActive(property.active !== false);
   }, [property]);
 
-  const locationOptions = LOCATIONS.map((location) => ({
+  useEffect(() => {
+    if (locations.some((location) => location.id === locationId)) return;
+    setLocationId(locations[0]?.id ?? '');
+  }, [locationId, locations]);
+
+  const locationOptions = locations.map((location) => ({
     value: location.id,
     label: location.name,
   }));
 
   const handleSave = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !locationId) return;
 
     updateProperty(property.id, {
       name: name.trim().toUpperCase(),
@@ -141,22 +147,25 @@ export function SettingsModal() {
   const preferences = useDashboardStore((state) => state.userPreferences);
   const updateUserPreferences = useDashboardStore((state) => state.updateUserPreferences);
 
+  const locations = usePropertyStore((state) => state.locations);
   const properties = usePropertyStore((state) => state.properties);
+  const addLocation = usePropertyStore((state) => state.addLocation);
   const addProperty = usePropertyStore((state) => state.addProperty);
   const resetProperties = usePropertyStore((state) => state.resetProperties);
   const activeProperties = getActiveProperties(properties);
 
   const requestedSection = modalParams.section as SettingsSection | undefined;
   const [section, setSection] = useState<SettingsSection>('overview');
+  const [newLocationName, setNewLocationName] = useState('');
   const [newPropertyName, setNewPropertyName] = useState('');
-  const [newLocationId, setNewLocationId] = useState(LOCATIONS[0]?.id ?? '');
+  const [newLocationId, setNewLocationId] = useState(locations[0]?.id ?? '');
   const [newPropertyRent, setNewPropertyRent] = useState('0');
 
   const taxesConfigured = isTaxConfigured(taxConfiguration);
 
   const locationOptions = useMemo(
-    () => LOCATIONS.map((location) => ({ value: location.id, label: location.name })),
-    []
+    () => locations.map((location) => ({ value: location.id, label: location.name })),
+    [locations]
   );
 
   useEffect(() => {
@@ -165,7 +174,33 @@ export function SettingsModal() {
     }
   }, [activeModal, requestedSection]);
 
+  useEffect(() => {
+    if (locations.some((location) => location.id === newLocationId)) return;
+    setNewLocationId(locations[0]?.id ?? '');
+  }, [locations, newLocationId]);
+
   if (activeModal !== 'settings') return null;
+
+  const handleAddLocation = () => {
+    const location = addLocation(newLocationName);
+    if (!location) {
+      addToast({
+        type: 'error',
+        title: 'Location Not Added',
+        message: 'Enter a unique location name.',
+      });
+      return;
+    }
+
+    setNewLocationId(location.id);
+    setNewLocationName('');
+    addActivity('location_saved', location.name, 'Added a new property location');
+    addToast({
+      type: 'success',
+      title: 'Location Added',
+      message: `${location.name} is ready for new properties.`,
+    });
+  };
 
   const handleAddProperty = () => {
     const property = addProperty(newPropertyName, newLocationId);
@@ -203,7 +238,12 @@ export function SettingsModal() {
       useDashboardStore.getState()._persist();
     }
 
-    addActivity('property_saved', property.name, `Added property in ${property.locationId}`);
+    const locationName = locations.find((location) => location.id === property.locationId)?.name;
+    addActivity(
+      'property_saved',
+      property.name,
+      `Added property in ${locationName || property.locationId}`
+    );
     addToast({ type: 'success', title: 'Property Added', message: `${property.name} is now active.` });
     setNewPropertyName('');
     setNewPropertyRent('0');
@@ -226,7 +266,7 @@ export function SettingsModal() {
     openConfirmation({
       title: 'Reset Application Data?',
       message:
-        'This restores default properties, sample bookings, expenses and tax configuration. Current custom data will be overwritten.',
+        'This restores default locations, properties, sample bookings, expenses and tax configuration. Current custom data will be overwritten.',
       confirmText: 'Reset All Data',
       variant: 'danger',
       onConfirm: () => {
@@ -311,7 +351,7 @@ export function SettingsModal() {
                     <Building2 className="h-5 w-5 text-cyan-400" />
                     <p className="mt-3 text-sm font-black text-slate-100">Properties</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {activeProperties.length} active of {properties.length} total
+                      {locations.length} locations · {activeProperties.length} active of {properties.length} properties
                     </p>
                   </button>
 
@@ -353,8 +393,50 @@ export function SettingsModal() {
                     Property Management
                   </h4>
                   <p className="mt-1 text-xs text-slate-500">
-                    Deactivate instead of deleting so historic reservations remain intact.
+                    Add locations and properties here. Deactivate properties instead of deleting them so historic reservations remain intact.
                   </p>
+                </div>
+
+                <div className="rounded-xl border border-violet-900/70 bg-violet-950/15 p-3.5">
+                  <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-violet-300">
+                    <MapPin className="h-4 w-4" /> Add Location
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Location Name
+                      </label>
+                      <input
+                        value={newLocationName}
+                        onChange={(event) => setNewLocationName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            handleAddLocation();
+                          }
+                        }}
+                        placeholder="e.g. Valletta"
+                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none focus:border-violet-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddLocation}
+                      className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-4 text-xs font-black uppercase tracking-wider text-white hover:bg-violet-500"
+                    >
+                      <Plus className="h-4 w-4" /> Add Location
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {locations.map((location) => (
+                      <span
+                        key={location.id}
+                        className={`rounded-md border px-2 py-1 text-[9px] font-black uppercase tracking-wider ${location.badgeBgClass}`}
+                      >
+                        {location.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-cyan-900/70 bg-cyan-950/15 p-3.5">
@@ -529,7 +611,7 @@ export function SettingsModal() {
                         <RotateCcw className="h-4 w-4" /> Reset Demo Data
                       </div>
                       <p className="mt-1 text-xs text-rose-200/60">
-                        Restores default properties, bookings, expenses and tax values.
+                        Restores default locations, properties, bookings, expenses and tax values.
                       </p>
                     </div>
                     <button
