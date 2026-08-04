@@ -1,0 +1,15 @@
+{
+  "name": "Property Management",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Property Management",
+      "protocol": "http",
+      "onAutoForward": "openPreview",
+      "visibility": "private"
+    }
+  },
+  "postCreateCommand": "npm install",
+  "postStartCommand": "bash -lc 'if ! curl -fsS http://127.0.0.1:3000 >/dev/null 2>&1; then nohup npm run dev > /tmp/property-management-vite.log 2>&1 & fi'"
+}
