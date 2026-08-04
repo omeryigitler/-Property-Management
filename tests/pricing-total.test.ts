@@ -1,64 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Booking } from '../src/types';
-import {
-  calculateBookingRevenueAndCommission,
-  getBookingMonthlyAllocatedNights,
-} from '../src/services/financialCalculationService';
+import { calculateBookingRevenue, getBookingMonthlyAllocatedNights } from '../src/services/financialCalculationService';
+import { normalizeBookingRecord } from '../src/services/persistenceRepository';
 
-function exactTotalBooking(): Booking {
+function simpleBooking(): Booking {
   return {
-    id: 'exact-total',
+    id: 'simple-total',
     propertyId: '1-the-olive',
-    guestName: 'Exact Total Guest',
+    guestName: 'Simple Total Guest',
     channel: 'direct',
     checkInDate: '2026-08-01',
     checkOutDate: '2026-08-04',
     nightlyRateCents: 3_333,
-    accommodationTotalCents: 10_001,
-    adults: 2,
-    children: 0,
     status: 'confirmed',
-    discountCents: 1,
-    cleaningFeeCents: 2_500,
-    commissionMode: 'none',
-    commissionPercentage: 0,
-    commissionFixedAmountCents: 0,
-    suggestedCommissionPercentage: 0,
-    commissionOverrideEnabled: false,
-    checkInTime: '15:00',
-    checkOutTime: '10:00',
-    timezone: 'Europe/Malta',
-    earlyCheckIn: false,
-    lateCheckOut: false,
-    requiredTurnoverMinutes: 240,
-    turnoverStatus: 'sufficient',
-    source: 'manual',
-    syncStatus: 'not_synced',
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',
   };
 }
 
-test('exact accommodation total overrides rounded nightly multiplication', () => {
-  const booking = exactTotalBooking();
-  const totals = calculateBookingRevenueAndCommission(booking);
-
-  assert.equal(totals.grossAccommodationRevenueCents, 10_000);
-  assert.equal(totals.grossBookingRevenueCents, 12_500);
+test('total is derived from nightly rate without a separate total field', () => {
+  const booking = simpleBooking();
+  assert.equal(calculateBookingRevenue(booking), 9_999);
+  assert.deepEqual(getBookingMonthlyAllocatedNights(booking).map((night) => night.revenueCents), [3_333, 3_333, 3_333]);
+  assert.equal('accommodationTotalCents' in booking, false);
 });
 
-test('exact total is distributed across nights without losing cents', () => {
-  const booking = exactTotalBooking();
-  const nights = getBookingMonthlyAllocatedNights(booking);
-
-  assert.equal(nights.length, 3);
-  assert.equal(
-    nights.reduce((sum, night) => sum + night.grossNightRevenueCents, 0),
-    12_500
-  );
-  assert.deepEqual(
-    nights.map((night) => night.grossNightRevenueCents),
-    [5_834, 3_333, 3_333]
-  );
+test('legacy exact totals are migrated into the nightly rate and removed', () => {
+  const migrated = normalizeBookingRecord({
+    ...simpleBooking(),
+    accommodationTotalCents: 10_001,
+    adults: 2,
+    children: 0,
+    cleaningFeeCents: 4_000,
+    discountCents: 500,
+    commissionPercentage: 15,
+  });
+  assert.ok(migrated);
+  assert.equal(migrated.nightlyRateCents, 3_334);
+  assert.equal('accommodationTotalCents' in migrated, false);
+  assert.equal('adults' in migrated, false);
+  assert.equal('commissionPercentage' in migrated, false);
 });

@@ -1,467 +1,70 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  }
-
-  ::selection {
-    background-color: #ff3e00;
-    color: #ffffff;
-  }
+  body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
+  ::selection { background-color: #ff3e00; color: #ffffff; }
 }
 
-.font-display {
-  font-family: 'Syne', sans-serif;
-}
+.font-display { font-family: 'Syne', sans-serif; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
 
-.font-mono {
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/*
- * Calendar and ledger dimensions are intentionally centralized here.
- * Every upper and lower grid cell consumes exactly the same fixed basis,
- * preventing independent flex shrinking and cross-section drift.
- */
-.dashboard-day-column {
-  width: 96px;
-  min-width: 96px;
-  flex: 0 0 96px;
-  overflow: hidden;
-}
-
-.dashboard-property-column {
-  width: 190px;
-  min-width: 190px;
-  flex: 0 0 190px;
-  overflow: hidden;
-}
-
-.dashboard-total-column {
-  width: 120px;
-  min-width: 120px;
-  flex: 0 0 120px;
-  overflow: hidden;
-}
-
-.dashboard-property-column > *,
-.dashboard-total-column > * {
-  min-width: 0;
-  max-width: 100%;
-}
-
-/* Existing calendar cells keep their current markup but are locked to the same basis. */
-[class~="w-[190px]"][class~="min-w-[160px]"] {
-  width: 190px !important;
-  min-width: 190px !important;
-  flex: 0 0 190px !important;
-  overflow: hidden;
-}
-
-[class~="w-[120px]"][class~="min-w-[110px]"] {
-  width: 120px !important;
-  min-width: 120px !important;
-  flex: 0 0 120px !important;
-  overflow: hidden;
-}
-
-[class~="w-20"][class~="min-w-[80px]"] {
-  width: 96px !important;
-  min-width: 96px !important;
-  flex: 0 0 96px !important;
-  overflow: hidden;
-}
+.dashboard-day-column { width: 96px; min-width: 96px; flex: 0 0 96px; overflow: hidden; }
+.dashboard-property-column { width: 190px; min-width: 190px; flex: 0 0 190px; overflow: hidden; }
+.dashboard-total-column { width: 120px; min-width: 120px; flex: 0 0 120px; overflow: hidden; }
+.dashboard-property-column > *, .dashboard-total-column > * { min-width: 0; max-width: 100%; }
+[class~="w-[190px]"][class~="min-w-[160px]"] { width: 190px !important; min-width: 190px !important; flex: 0 0 190px !important; overflow: hidden; }
+[class~="w-[120px]"][class~="min-w-[110px]"] { width: 120px !important; min-width: 120px !important; flex: 0 0 120px !important; overflow: hidden; }
+[class~="w-20"][class~="min-w-[80px]"] { width: 96px !important; min-width: 96px !important; flex: 0 0 96px !important; overflow: hidden; }
 
 .ledger-booking-row { height: 58px; min-height: 58px; }
 .ledger-rent-row { height: 54px; min-height: 54px; }
 .ledger-extra-row { height: 124px; min-height: 124px; }
 .ledger-expenses-row { height: 176px; min-height: 176px; }
 .ledger-total-row { height: 48px; min-height: 48px; }
-.ledger-tax-row { height: 52px; min-height: 52px; }
 .ledger-balance-row { height: 58px; min-height: 58px; }
 .ledger-report-row { height: 98px; min-height: 98px; }
+.ledger-booking-row, .ledger-rent-row, .ledger-extra-row, .ledger-expenses-row, .ledger-total-row, .ledger-balance-row, .ledger-report-row { min-width: 0; max-width: 100%; overflow: hidden; }
+.dashboard-day-column > .ledger-booking-row, .dashboard-day-column > .ledger-rent-row, .dashboard-day-column > .ledger-extra-row, .dashboard-day-column > .ledger-expenses-row, .dashboard-day-column > .ledger-total-row, .dashboard-day-column > .ledger-balance-row, .dashboard-day-column > .ledger-report-row { padding-left: 6px !important; padding-right: 6px !important; font-size: 9px; line-height: 1.05; letter-spacing: .025em; white-space: normal; overflow-wrap: anywhere; }
+.dashboard-property-column span, .dashboard-total-column span { min-width: 0; max-width: 100%; }
+.dashboard-property-column .font-mono, .dashboard-total-column .font-mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Keep every ledger cell self-contained so text cannot bleed into a neighbour. */
-.ledger-booking-row,
-.ledger-rent-row,
-.ledger-extra-row,
-.ledger-expenses-row,
-.ledger-total-row,
-.ledger-tax-row,
-.ledger-balance-row,
-.ledger-report-row {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
+[class~="w-screen"][class~="sticky"][class~="left-0"] { width: 100vw !important; max-width: 100vw; min-width: 0; overflow: hidden; }
+.ledger-report-row > div:first-child { min-width: 0; }
+.ledger-report-row > div:first-child > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-report-row > div:first-child > span:last-child { flex: 0 0 auto; max-width: 94px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.dashboard-day-column > .ledger-booking-row,
-.dashboard-day-column > .ledger-rent-row,
-.dashboard-day-column > .ledger-extra-row,
-.dashboard-day-column > .ledger-expenses-row,
-.dashboard-day-column > .ledger-total-row,
-.dashboard-day-column > .ledger-tax-row,
-.dashboard-day-column > .ledger-balance-row,
-.dashboard-day-column > .ledger-report-row {
-  padding-left: 6px !important;
-  padding-right: 6px !important;
-  font-size: 9px;
-  line-height: 1.05;
-  letter-spacing: 0.025em;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: normal;
-}
-
-.dashboard-property-column span,
-.dashboard-total-column span {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.dashboard-property-column .font-mono,
-.dashboard-total-column .font-mono {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Sticky section bars must never become wider than the visible mobile viewport. */
-[class~="w-screen"][class~="sticky"][class~="left-0"] {
-  width: 100vw !important;
-  max-width: 100vw;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Report cells keep the property title and status badge inside their own column. */
-.ledger-report-row > div:first-child {
-  min-width: 0;
-}
-
-.ledger-report-row > div:first-child > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ledger-report-row > div:first-child > span:last-child {
-  flex: 0 0 auto;
-  max-width: 94px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+form[class~="overflow-y-auto"] { -ms-overflow-style: none; scrollbar-width: none; }
+form[class~="overflow-y-auto"]::-webkit-scrollbar { display: none; width: 0; height: 0; }
+input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="checkbox"] { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; min-width: 14px; margin: 0; border: 1px solid #475569; border-radius: 3px; background: #020617; display: inline-grid; place-content: center; cursor: pointer; }
+input[type="checkbox"]::before { content: ""; width: 7px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) scale(0); transition: transform 120ms ease; }
+input[type="checkbox"]:checked { border-color: #06b6d4; background: #06b6d4; }
+input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
+input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(6,182,212,.22); }
+input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .55; }
 
 @media (max-width: 640px) {
-  .dashboard-day-column > .ledger-booking-row,
-  .dashboard-day-column > .ledger-rent-row,
-  .dashboard-day-column > .ledger-extra-row,
-  .dashboard-day-column > .ledger-expenses-row,
-  .dashboard-day-column > .ledger-total-row,
-  .dashboard-day-column > .ledger-tax-row,
-  .dashboard-day-column > .ledger-balance-row,
-  .dashboard-day-column > .ledger-report-row {
-    padding-left: 5px !important;
-    padding-right: 5px !important;
-    font-size: 8px;
-    line-height: 1;
-    letter-spacing: 0.01em;
-  }
-
-  [class~="w-screen"][class~="sticky"][class~="left-0"] {
-    gap: 8px !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-  }
-
-  /* The financial subtitle is non-essential on narrow screens. */
-  [class~="w-screen"][class~="sticky"][class~="left-0"] > span:last-child {
-    display: none;
-  }
-
-  /* Keep the reports heading readable; the comparison action remains as its icon. */
-  section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] > div {
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] h2 {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] p {
-    display: none;
-  }
-
-  section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] > button {
-    flex: 0 0 auto;
-    width: 30px;
-    height: 30px;
-    padding: 6px !important;
-    gap: 0 !important;
-    overflow: hidden;
-    font-size: 0 !important;
-  }
-
-  .ledger-report-row > div:first-child {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 3px;
-  }
-
-  .ledger-report-row > div:first-child > span:last-child {
-    max-width: 100%;
-    font-size: 8px;
-  }
-}
-
-/* Booking modal remains scrollable while its visual scrollbar stays hidden. */
-form[class~="overflow-y-auto"][class~="space-y-5"] {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-form[class~="overflow-y-auto"][class~="space-y-5"]::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-/* Remove native number steppers everywhere in the application. */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-/* Keep every checkbox dark and visually consistent with the dashboard theme. */
-input[type="checkbox"] {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
-  margin: 0;
-  border: 1px solid #475569;
-  border-radius: 3px;
-  background: #020617;
-  display: inline-grid;
-  place-content: center;
-  cursor: pointer;
-  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
-}
-
-input[type="checkbox"]::before {
-  content: "";
-  width: 7px;
-  height: 4px;
-  border-left: 2px solid #ffffff;
-  border-bottom: 2px solid #ffffff;
-  transform: rotate(-45deg) scale(0);
-  transform-origin: center;
-  transition: transform 120ms ease;
-}
-
-input[type="checkbox"]:hover {
-  border-color: #64748b;
-  background: #0f172a;
-}
-
-input[type="checkbox"]:checked {
-  border-color: #06b6d4;
-  background: #06b6d4;
-}
-
-input[type="checkbox"]:checked::before {
-  transform: rotate(-45deg) scale(1);
-}
-
-input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.22);
-}
-
-input[type="checkbox"]:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-/*
- * Operational Schedule & Turnovers:
- * - three equal inputs on the first row
- * - two equal checkbox actions on the second row
- * This avoids truncation inside the modal while keeping the section symmetrical.
- */
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"] {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: end;
-}
-
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-  > div {
-  min-width: 0;
-}
-
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-  > div:nth-child(3) {
-  grid-column: 1 / -1;
-}
-
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-  > div:last-child {
-  display: contents;
-}
-
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-  input[type="time"],
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-  input[type="number"] {
-  width: 100%;
-  height: 38px;
-  min-height: 38px;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-  > div:last-child
-  > label {
-  grid-column: 1 / -1;
-  width: 100%;
-  min-width: 0;
-  min-height: 38px;
-  padding: 9px 12px;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  background: #0f172a;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  color: #cbd5e1;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  line-height: 1.2;
-}
-
-form[class~="overflow-y-auto"][class~="space-y-5"]
-  [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-  > div:last-child
-  > label:hover {
-  border-color: #475569;
-  background: #111c2e;
-}
-
-@media (min-width: 640px) {
-  form[class~="overflow-y-auto"][class~="space-y-5"]
-    [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"] {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  form[class~="overflow-y-auto"][class~="space-y-5"]
-    [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-    > div:nth-child(-n+3) {
-    grid-column: span 2;
-  }
-
-  form[class~="overflow-y-auto"][class~="space-y-5"]
-    [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-    > div:nth-child(3) {
-    grid-column: span 2;
-  }
-
-  form[class~="overflow-y-auto"][class~="space-y-5"]
-    [class~="grid-cols-2"][class~="sm:grid-cols-4"][class~="gap-3"][class~="text-xs"]
-    > div:last-child
-    > label {
-    grid-column: span 3;
-    justify-content: center;
-    white-space: nowrap;
-  }
+  .dashboard-day-column > .ledger-booking-row, .dashboard-day-column > .ledger-rent-row, .dashboard-day-column > .ledger-extra-row, .dashboard-day-column > .ledger-expenses-row, .dashboard-day-column > .ledger-total-row, .dashboard-day-column > .ledger-balance-row, .dashboard-day-column > .ledger-report-row { padding-left: 5px !important; padding-right: 5px !important; font-size: 8px; line-height: 1; letter-spacing: .01em; }
+  [class~="w-screen"][class~="sticky"][class~="left-0"] { gap: 8px !important; padding-left: 8px !important; padding-right: 8px !important; }
+  section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] p { display: none; }
+  section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] > button { flex: 0 0 auto; width: 30px; height: 30px; padding: 6px !important; gap: 0 !important; overflow: hidden; font-size: 0 !important; }
+  .ledger-report-row > div:first-child { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
 
 @layer utilities {
-  /* Custom Scrollbar Styling */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: #020617;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #475569;
-  }
-
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 1rem);
-  }
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-4px); }
-  40%, 80% { transform: translateX(4px); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-slide-up {
-  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-shake {
-  animation: shake 0.3s ease-in-out;
-}
+@keyframes fadeIn { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: scale(1); } }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-4px); } 40%,80% { transform: translateX(4px); } }
+.animate-fade-in { animation: fadeIn .18s ease-out; }
+.animate-slide-up { animation: slideUp .22s ease-out; }
+.animate-shake { animation: shake .35s ease-in-out; }

@@ -1,18 +1,6 @@
-import {
-  Booking,
-  Expense,
-  ExtraIncome,
-  TaxConfiguration,
-  Channel,
-} from '../types';
+import { Booking, Channel, Expense, ExtraIncome } from '../types';
 import { ALL_PROPERTIES, LOCATIONS } from '../config/locations';
-import {
-  calculatePropertyFinancials,
-  calculateAggregatedFinancials,
-  calculateBookingRevenueAndCommission,
-  getBookingMonthlyAllocatedNights,
-} from './financialCalculationService';
-import { calculateSameDayTurnover } from './turnoverService';
+import { getBookingMonthlyAllocatedNights } from './financialCalculationService';
 
 export interface AnalyticsFilter {
   year: number;
@@ -25,184 +13,94 @@ export interface AnalyticsFilter {
 }
 
 export interface KpiMetrics {
-  grossBookingRevenueCents: number;
-  otaCommissionCents: number;
-  netBookingRevenueCents: number;
+  bookingRevenueCents: number;
   totalExtraIncomeCents: number;
   totalOperatingExpensesCents: number;
-  calculatedTaxesCents: number | null;
-  netBalanceCents: number | null;
+  netBalanceCents: number;
   occupancyRatePct: number;
   adrCents: number;
   revParCents: number;
   averageLengthOfStayNights: number;
   totalBookingCount: number;
   cancellationCount: number;
-  effectiveCommissionRatePct: number;
-  sameDayTurnoverCount: number;
-  insufficientTurnoverCount: number;
-  isTaxConfigured: boolean;
 }
 
-/**
- * Calculates complete KPI metrics based on filter selections.
- */
 export function calculateKpiMetrics(
   bookings: Booking[],
   expenses: Expense[],
   extraIncomes: ExtraIncome[],
-  taxConfig: TaxConfiguration,
   filter: AnalyticsFilter
 ): KpiMetrics {
-  let filteredBookings = bookings;
-
+  let targetProperties = ALL_PROPERTIES;
   if (filter.propertyId !== 'all') {
-    filteredBookings = filteredBookings.filter((b) => b.propertyId === filter.propertyId);
+    targetProperties = ALL_PROPERTIES.filter((property) => property.id === filter.propertyId);
   } else if (filter.locationId !== 'all') {
-    const loc = LOCATIONS.find((l) => l.id === filter.locationId);
-    const pIds = loc ? loc.properties.map((p) => p.id) : [];
-    filteredBookings = filteredBookings.filter((b) => pIds.includes(b.propertyId));
+    targetProperties = ALL_PROPERTIES.filter((property) => property.locationId === filter.locationId);
   }
+  const propertyIds = new Set(targetProperties.map((property) => property.id));
 
+  let scopedBookings = bookings.filter((booking) => propertyIds.has(booking.propertyId));
   if (filter.channel !== 'all') {
-    filteredBookings = filteredBookings.filter((b) => b.channel === filter.channel);
+    scopedBookings = scopedBookings.filter((booking) => booking.channel === filter.channel);
   }
 
-  const cancelledBookings = filteredBookings.filter((b) => b.status === 'cancelled');
-
-  let activeBookings = filteredBookings.filter((b) => b.status !== 'cancelled');
+  const cancellationCount = scopedBookings.filter((booking) => booking.status === 'cancelled').length;
+  let activeBookings = scopedBookings.filter((booking) => booking.status !== 'cancelled');
   if (filter.statusFilter === 'confirmed_only') {
-    activeBookings = activeBookings.filter((b) => b.status !== 'provisional');
+    activeBookings = activeBookings.filter((booking) => booking.status !== 'provisional');
   }
 
-  // Filter by year & month
-  let grossRevCents = 0;
-  let otaCommCents = 0;
-  let extraIncCents = 0;
+  let bookingRevenueCents = 0;
   let occupiedNights = 0;
-
-  for (const b of activeBookings) {
-    const nights = getBookingMonthlyAllocatedNights(b, taxConfig);
-    const matchingNights = nights.filter((n) => {
-      if (n.year !== filter.year) return false;
-      if (filter.month !== 'all' && n.month !== filter.month) return false;
-      return true;
+  const matchedBookingIds = new Set<string>();
+  for (const booking of activeBookings) {
+    const nights = getBookingMonthlyAllocatedNights(booking).filter((night) => {
+      if (night.year !== filter.year) return false;
+      return filter.month === 'all' || night.month === filter.month;
     });
-
-    for (const n of matchingNights) {
-      grossRevCents += n.grossNightRevenueCents;
-      otaCommCents += n.otaCommissionCents;
-      occupiedNights++;
-    }
+    if (nights.length === 0) continue;
+    matchedBookingIds.add(booking.id);
+    occupiedNights += nights.length;
+    bookingRevenueCents += nights.reduce((sum, night) => sum + night.revenueCents, 0);
   }
 
-  const netRevCents = grossRevCents - otaCommCents;
+  const matchesPeriod = (year: number, month: number) =>
+    year === filter.year && (filter.month === 'all' || month === filter.month);
+  const totalExtraIncomeCents = extraIncomes
+    .filter(
+      (income) => propertyIds.has(income.propertyId) && matchesPeriod(income.year, income.month)
+    )
+    .reduce((sum, income) => sum + income.amountCents, 0);
+  const totalOperatingExpensesCents = expenses
+    .filter(
+      (expense) => propertyIds.has(expense.propertyId) && matchesPeriod(expense.year, expense.month)
+    )
+    .reduce((sum, expense) => sum + expense.amountCents, 0);
 
-  // Filter Extra Incomes & Expenses
-  const filteredExtra = extraIncomes.filter((e) => {
-    if (e.year !== filter.year) return false;
-    if (filter.month !== 'all' && e.month !== filter.month) return false;
-    if (filter.propertyId !== 'all' && e.propertyId !== filter.propertyId) return false;
-    if (filter.locationId !== 'all') {
-      const loc = LOCATIONS.find((l) => l.id === filter.locationId);
-      const pIds = loc ? loc.properties.map((p) => p.id) : [];
-      if (!pIds.includes(e.propertyId)) return false;
-    }
-    return true;
-  });
-  extraIncCents = filteredExtra.reduce((sum, e) => sum + e.amountCents, 0);
-
-  const filteredExp = expenses.filter((e) => {
-    if (e.year !== filter.year) return false;
-    if (filter.month !== 'all' && e.month !== filter.month) return false;
-    if (filter.propertyId !== 'all' && e.propertyId !== filter.propertyId) return false;
-    if (filter.locationId !== 'all') {
-      const loc = LOCATIONS.find((l) => l.id === filter.locationId);
-      const pIds = loc ? loc.properties.map((p) => p.id) : [];
-      if (!pIds.includes(e.propertyId)) return false;
-    }
-    return true;
-  });
-  const operatingExpensesCents = filteredExp.reduce((sum, e) => sum + e.amountCents, 0);
-
-  // Financial aggregates for Tax and Net Balance
-  let targetProps = ALL_PROPERTIES;
-  if (filter.propertyId !== 'all') {
-    targetProps = ALL_PROPERTIES.filter((p) => p.id === filter.propertyId);
-  } else if (filter.locationId !== 'all') {
-    const loc = LOCATIONS.find((l) => l.id === filter.locationId);
-    targetProps = loc ? ALL_PROPERTIES.filter((p) => loc.properties.some((lp) => lp.id === p.id)) : ALL_PROPERTIES;
-  }
-
-  const monthsToEvaluate = filter.month === 'all' ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : [filter.month];
-
-  let calcTaxesCents: number | null = 0;
-  let isTaxCfg = true;
-
-  for (const m of monthsToEvaluate) {
-    for (const prop of targetProps) {
-      const fin = calculatePropertyFinancials(prop.id, filter.year, m, bookings, expenses, extraIncomes, taxConfig);
-      if (!fin.isTaxConfigured) {
-        isTaxCfg = false;
-        calcTaxesCents = null;
-        break;
-      }
-      calcTaxesCents = (calcTaxesCents ?? 0) + (fin.calculatedTaxesCents ?? 0);
-    }
-    if (!isTaxCfg) break;
-  }
-
-  const netBalCents = isTaxCfg && calcTaxesCents !== null ? netRevCents + extraIncCents - operatingExpensesCents - calcTaxesCents : null;
-
-  // Occupancy metrics
-  const propCount = targetProps.length;
-  const daysInPeriod = filter.month === 'all' ? 365 : new Date(filter.year, filter.month, 0).getDate();
-  const totalAvailableNights = propCount * daysInPeriod;
-
-  const occupancyRatePct = totalAvailableNights > 0 ? Math.round((occupiedNights / totalAvailableNights) * 1000) / 10 : 0;
-  const adrCents = occupiedNights > 0 ? Math.round(grossRevCents / occupiedNights) : 0;
-  const revParCents = totalAvailableNights > 0 ? Math.round(grossRevCents / totalAvailableNights) : 0;
-
-  const activeBookingCount = activeBookings.length;
-  const averageLengthOfStayNights = activeBookingCount > 0 ? Math.round((occupiedNights / activeBookingCount) * 10) / 10 : 0;
-
-  const effectiveCommissionRatePct = grossRevCents > 0 ? Math.round((otaCommCents / grossRevCents) * 1000) / 10 : 0;
-
-  // Turnovers
-  let sameDayTurnovers = 0;
-  let insufficientTurnovers = 0;
-
-  for (let i = 0; i < activeBookings.length; i++) {
-    for (let j = 0; j < activeBookings.length; j++) {
-      if (i !== j && activeBookings[i].propertyId === activeBookings[j].propertyId) {
-        if (activeBookings[i].checkOutDate === activeBookings[j].checkInDate) {
-          sameDayTurnovers++;
-          const calc = calculateSameDayTurnover(activeBookings[i], activeBookings[j]);
-          if (calc.status === 'insufficient' || calc.status === 'tight') {
-            insufficientTurnovers++;
-          }
-        }
-      }
-    }
-  }
+  const daysInPeriod =
+    filter.month === 'all'
+      ? new Date(filter.year, 1, 29).getMonth() === 1
+        ? 366
+        : 365
+      : new Date(filter.year, filter.month, 0).getDate();
+  const availableNights = targetProperties.length * daysInPeriod;
+  const bookingCount = matchedBookingIds.size;
 
   return {
-    grossBookingRevenueCents: grossRevCents,
-    otaCommissionCents: otaCommCents,
-    netBookingRevenueCents: netRevCents,
-    totalExtraIncomeCents: extraIncCents,
-    totalOperatingExpensesCents: operatingExpensesCents,
-    calculatedTaxesCents: calcTaxesCents,
-    netBalanceCents: netBalCents,
-    occupancyRatePct,
-    adrCents,
-    revParCents,
-    averageLengthOfStayNights,
-    totalBookingCount: activeBookingCount,
-    cancellationCount: cancelledBookings.length,
-    effectiveCommissionRatePct,
-    sameDayTurnoverCount: sameDayTurnovers,
-    insufficientTurnoverCount: insufficientTurnovers,
-    isTaxConfigured: isTaxCfg,
+    bookingRevenueCents,
+    totalExtraIncomeCents,
+    totalOperatingExpensesCents,
+    netBalanceCents:
+      bookingRevenueCents + totalExtraIncomeCents - totalOperatingExpensesCents,
+    occupancyRatePct:
+      availableNights > 0 ? Math.round((occupiedNights / availableNights) * 1000) / 10 : 0,
+    adrCents: occupiedNights > 0 ? Math.round(bookingRevenueCents / occupiedNights) : 0,
+    revParCents: availableNights > 0 ? Math.round(bookingRevenueCents / availableNights) : 0,
+    averageLengthOfStayNights:
+      bookingCount > 0 ? Math.round((occupiedNights / bookingCount) * 10) / 10 : 0,
+    totalBookingCount: bookingCount,
+    cancellationCount,
   };
 }
+
+export { LOCATIONS };

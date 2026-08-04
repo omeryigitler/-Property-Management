@@ -1,30 +1,29 @@
 import { create } from 'zustand';
 import {
+  ActivityRecord,
+  BackupData,
   Booking,
+  Channel,
   Expense,
   ExtraIncome,
-  TaxConfiguration,
-  UserPreferences,
-  ActivityRecord,
-  ToastMessage,
-  BackupData,
   MainViewMode,
-  TurnoverTask,
-  Channel,
   PersistedState,
+  ToastMessage,
+  UserPreferences,
 } from '../types';
 import {
-  PersistenceRepository,
-  DEFAULT_TAX_CONFIG,
-  DEFAULT_USER_PREFERENCES,
   createDefaultExpenses,
   createSeedBookings,
   createSeedExtraIncome,
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_USER_PREFERENCES,
+  normalizeBookingRecord,
+  normalizePersistedState,
+  PersistenceRepository,
 } from '../services/persistenceRepository';
 import { storageService } from '../services/storageService';
 import { validateBookingOverlap } from '../utils/overlapValidation';
 import { ParsedIcalEvent } from '../services/icalService';
-import { DEFAULT_CHANNEL_COMMISSIONS } from '../services/financialCalculationService';
 import { usePropertyStore } from './usePropertyStore';
 
 const LOCAL_REDACTED_GUEST_NAME = '[Encrypted guest data stored in IndexedDB]';
@@ -32,11 +31,9 @@ const LOCAL_REDACTED_GUEST_NAME = '[Encrypted guest data stored in IndexedDB]';
 export type ModalType =
   | 'booking_add'
   | 'booking_edit'
-  | 'tax_config'
   | 'settings'
   | 'history'
   | 'export_import'
-  | 'calc_details'
   | 'mobile_property_finance'
   | 'ical_import'
   | 'privacy_retention'
@@ -46,11 +43,9 @@ interface DashboardState {
   selectedMonth: number;
   selectedYear: number;
   mainViewMode: MainViewMode;
-  taxConfiguration: TaxConfiguration;
   bookings: Booking[];
   expenses: Expense[];
   extraIncomes: ExtraIncome[];
-  turnoverTasks: TurnoverTask[];
   userPreferences: UserPreferences;
   activityHistory: ActivityRecord[];
   toasts: ToastMessage[];
@@ -83,12 +78,10 @@ interface DashboardState {
   updateExpense: (id: string, updates: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
   addExtraIncome: (
-    extraIncome: Omit<ExtraIncome, 'id' | 'createdAt' | 'updatedAt'>
+    income: Omit<ExtraIncome, 'id' | 'createdAt' | 'updatedAt'>
   ) => void;
   updateExtraIncome: (id: string, updates: Partial<ExtraIncome>) => void;
   deleteExtraIncome: (id: string) => void;
-  updateTurnoverTask: (id: string, updates: Partial<TurnoverTask>) => void;
-  updateTaxConfig: (config: Partial<TaxConfiguration>) => void;
   updateUserPreferences: (prefs: Partial<UserPreferences>) => void;
   anonymizeAllPII: () => Promise<void>;
   clearAllData: () => Promise<void>;
@@ -117,53 +110,11 @@ interface DashboardState {
   _persist: () => void;
 }
 
-interface PersistableDashboardState {
-  selectedMonth: number;
-  selectedYear: number;
-  taxConfiguration: TaxConfiguration;
-  bookings: Booking[];
-  expenses: Expense[];
-  extraIncomes: ExtraIncome[];
-  userPreferences: UserPreferences;
-  activityHistory: ActivityRecord[];
-}
-
-function getChannelDefaults(channel: Channel) {
-  return DEFAULT_CHANNEL_COMMISSIONS[channel] ?? {
-    percentage: 15,
-    mode: 'percentage' as const,
-  };
-}
-
-function normalizeBooking(booking: Booking): Booking {
-  const channelDefaults = getChannelDefaults(booking.channel);
-
+function createPersistedSnapshot(state: DashboardState): PersistedState {
   return {
-    ...booking,
-    commissionMode: booking.commissionMode ?? channelDefaults.mode,
-    commissionPercentage: booking.commissionPercentage ?? channelDefaults.percentage,
-    commissionFixedAmountCents: booking.commissionFixedAmountCents ?? 0,
-    suggestedCommissionPercentage:
-      booking.suggestedCommissionPercentage ?? channelDefaults.percentage,
-    commissionOverrideEnabled: booking.commissionOverrideEnabled ?? false,
-    checkInTime: booking.checkInTime ?? '15:00',
-    checkOutTime: booking.checkOutTime ?? '10:00',
-    timezone: booking.timezone ?? 'Europe/Malta',
-    earlyCheckIn: booking.earlyCheckIn ?? false,
-    lateCheckOut: booking.lateCheckOut ?? false,
-    requiredTurnoverMinutes: booking.requiredTurnoverMinutes ?? 240,
-    turnoverStatus: booking.turnoverStatus ?? 'sufficient',
-    source: booking.source ?? 'manual',
-    syncStatus: booking.syncStatus ?? 'not_synced',
-  };
-}
-
-function createPersistedSnapshot(state: PersistableDashboardState): PersistedState {
-  return {
-    version: 1,
+    version: CURRENT_SCHEMA_VERSION,
     selectedMonth: state.selectedMonth,
     selectedYear: state.selectedYear,
-    taxConfiguration: state.taxConfiguration,
     bookings: state.bookings,
     expenses: state.expenses,
     extraIncomes: state.extraIncomes,
@@ -178,11 +129,6 @@ function redactLocalSnapshot(state: PersistedState): PersistedState {
     bookings: state.bookings.map((booking) => ({
       ...booking,
       guestName: LOCAL_REDACTED_GUEST_NAME,
-      contactEmail: undefined,
-      contactPhone: undefined,
-      address: undefined,
-      identificationDetails: undefined,
-      notes: undefined,
     })),
   };
 }
@@ -197,18 +143,10 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   selectedMonth: loadedState.selectedMonth,
   selectedYear: loadedState.selectedYear,
   mainViewMode: 'calendar',
-  taxConfiguration: {
-    ...DEFAULT_TAX_CONFIG,
-    ...loadedState.taxConfiguration,
-  },
-  bookings: loadedState.bookings.map(normalizeBooking),
+  bookings: loadedState.bookings,
   expenses: loadedState.expenses,
   extraIncomes: loadedState.extraIncomes,
-  turnoverTasks: [],
-  userPreferences: {
-    ...DEFAULT_USER_PREFERENCES,
-    ...loadedState.userPreferences,
-  },
+  userPreferences: { ...DEFAULT_USER_PREFERENCES, ...loadedState.userPreferences },
   activityHistory: loadedState.activityHistory,
   toasts: [],
   hoveredCell: null,
@@ -220,14 +158,11 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     set({ selectedMonth: month });
     get()._persist();
   },
-
   setSelectedYear: (year) => {
     set({ selectedYear: year });
     get()._persist();
   },
-
   setMainViewMode: (mode) => set({ mainViewMode: mode }),
-
   nextMonth: () => {
     const { selectedMonth, selectedYear } = get();
     set(
@@ -237,7 +172,6 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     );
     get()._persist();
   },
-
   prevMonth: () => {
     const { selectedMonth, selectedYear } = get();
     set(
@@ -247,7 +181,6 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     );
     get()._persist();
   },
-
   goToToday: () => {
     const today = new Date();
     set({ selectedMonth: today.getMonth() + 1, selectedYear: today.getFullYear() });
@@ -262,22 +195,17 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       bookingInput.checkOutDate,
       bookings
     );
-
     if (overlap.hasOverlap) {
-      return {
-        success: false,
-        error: overlap.errorMessage || 'Overlapping booking detected',
-      };
+      return { success: false, error: overlap.errorMessage || 'Overlapping booking detected' };
     }
-
     const now = new Date().toISOString();
-    const newBooking = normalizeBooking({
+    const newBooking = normalizeBookingRecord({
       ...bookingInput,
-      id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: now,
       updatedAt: now,
     });
-
+    if (!newBooking) return { success: false, error: 'Invalid reservation data.' };
     set({ bookings: [...bookings, newBooking] });
     get()._persist();
     addActivity(
@@ -285,11 +213,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       newBooking.guestName,
       `Created booking in property ${newBooking.propertyId} (${newBooking.checkInDate} to ${newBooking.checkOutDate})`
     );
-    addToast({
-      type: 'success',
-      title: 'Booking Created',
-      message: `Reservation for ${newBooking.guestName} saved successfully.`,
-    });
+    addToast({ type: 'success', title: 'Booking Created', message: `${newBooking.guestName} saved.` });
     return { success: true };
   },
 
@@ -297,46 +221,26 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const { bookings, addActivity, addToast } = get();
     const existing = bookings.find((booking) => booking.id === id);
     if (!existing) return { success: false, error: 'Booking not found' };
-
-    const targetPropertyId = updates.propertyId ?? existing.propertyId;
-    const targetCheckIn = updates.checkInDate ?? existing.checkInDate;
-    const targetCheckOut = updates.checkOutDate ?? existing.checkOutDate;
-
+    const propertyId = updates.propertyId ?? existing.propertyId;
+    const checkInDate = updates.checkInDate ?? existing.checkInDate;
+    const checkOutDate = updates.checkOutDate ?? existing.checkOutDate;
     if (updates.propertyId || updates.checkInDate || updates.checkOutDate) {
-      const overlap = validateBookingOverlap(
-        targetPropertyId,
-        targetCheckIn,
-        targetCheckOut,
-        bookings,
-        id
-      );
+      const overlap = validateBookingOverlap(propertyId, checkInDate, checkOutDate, bookings, id);
       if (overlap.hasOverlap) {
-        return {
-          success: false,
-          error: overlap.errorMessage || 'Overlapping booking detected',
-        };
+        return { success: false, error: overlap.errorMessage || 'Overlapping booking detected' };
       }
     }
-
-    const now = new Date().toISOString();
-    set({
-      bookings: bookings.map((booking) =>
-        booking.id === id
-          ? normalizeBooking({ ...booking, ...updates, updatedAt: now })
-          : booking
-      ),
+    const normalized = normalizeBookingRecord({
+      ...existing,
+      ...updates,
+      id,
+      updatedAt: new Date().toISOString(),
     });
+    if (!normalized) return { success: false, error: 'Invalid reservation data.' };
+    set({ bookings: bookings.map((booking) => (booking.id === id ? normalized : booking)) });
     get()._persist();
-    addActivity(
-      'booking_updated',
-      existing.guestName,
-      `Updated booking details for ${existing.guestName}`
-    );
-    addToast({
-      type: 'success',
-      title: 'Booking Updated',
-      message: `Changes for ${existing.guestName} saved.`,
-    });
+    addActivity('booking_updated', normalized.guestName, `Updated booking for ${normalized.guestName}`);
+    addToast({ type: 'success', title: 'Booking Updated', message: `${normalized.guestName} saved.` });
     return { success: true };
   },
 
@@ -344,200 +248,100 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const { bookings, addActivity, addToast } = get();
     const existing = bookings.find((booking) => booking.id === id);
     if (!existing) return;
-
     set({ bookings: bookings.filter((booking) => booking.id !== id) });
     get()._persist();
     addActivity('booking_deleted', existing.guestName, `Deleted booking for ${existing.guestName}`);
     addToast({
       type: 'warning',
       title: 'Booking Deleted',
-      message: `Deleted booking for ${existing.guestName}.`,
+      message: `${existing.guestName} removed.`,
       undoAction: () => {
         set((state) => ({ bookings: [...state.bookings, existing] }));
         get()._persist();
-        get().addActivity(
-          'booking_created',
-          existing.guestName,
-          `Restored deleted booking for ${existing.guestName}`
-        );
-        get().addToast({
-          type: 'success',
-          title: 'Restored',
-          message: `Restored booking for ${existing.guestName}.`,
-        });
       },
       duration: 6000,
     });
   },
 
   cancelBooking: (id) => {
-    const { bookings, addActivity, addToast } = get();
-    const existing = bookings.find((booking) => booking.id === id);
+    const existing = get().bookings.find((booking) => booking.id === id);
     if (!existing || existing.status === 'cancelled') return;
-
-    const now = new Date().toISOString();
-    set({
-      bookings: bookings.map((booking) =>
-        booking.id === id ? { ...booking, status: 'cancelled', updatedAt: now } : booking
-      ),
-    });
-    get()._persist();
-    addActivity('booking_cancelled', existing.guestName, `Cancelled booking for ${existing.guestName}`);
-    addToast({
-      type: 'warning',
-      title: 'Booking Cancelled',
-      message: `Reservation for ${existing.guestName} was cancelled.`,
-    });
+    get().updateBooking(id, { status: 'cancelled' });
+    get().addActivity('booking_cancelled', existing.guestName, `Cancelled booking for ${existing.guestName}`);
   },
 
   duplicateBooking: (id) => {
-    const { bookings, addBooking } = get();
-    const existing = bookings.find((booking) => booking.id === id);
+    const existing = get().bookings.find((booking) => booking.id === id);
     if (!existing) return;
-
-    const result = addBooking({
-      ...existing,
+    const result = get().addBooking({
+      propertyId: existing.propertyId,
       guestName: `${existing.guestName} (Copy)`,
+      channel: existing.channel,
+      checkInDate: existing.checkInDate,
+      checkOutDate: existing.checkOutDate,
+      nightlyRateCents: existing.nightlyRateCents,
       status: 'confirmed',
-      bookingRef: existing.bookingRef ? `${existing.bookingRef}-COPY` : undefined,
+      externalUid: undefined,
     });
-
     if (!result.success) {
-      get().addToast({
-        type: 'error',
-        title: 'Cannot Duplicate',
-        message: result.error,
-      });
+      get().addToast({ type: 'error', title: 'Cannot Duplicate', message: result.error });
     }
   },
 
-  addExpense: (expenseInput) => {
-    const { expenses, addActivity, addToast } = get();
+  addExpense: (input) => {
     const now = new Date().toISOString();
-    const newExpense: Expense = {
-      ...expenseInput,
-      id: `exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    const expense: Expense = {
+      ...input,
+      id: `exp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: now,
       updatedAt: now,
     };
-    set({ expenses: [...expenses, newExpense] });
+    set((state) => ({ expenses: [...state.expenses, expense] }));
     get()._persist();
-    addActivity(
-      'expense_saved',
-      newExpense.label,
-      `Added expense ${newExpense.label} (€${(newExpense.amountCents / 100).toFixed(2)})`
-    );
-    addToast({ type: 'success', title: 'Expense Added', message: `${newExpense.label} saved.` });
+    get().addActivity('expense_saved', expense.label, `Added expense ${expense.label}`);
   },
-
   updateExpense: (id, updates) => {
-    const { expenses, addActivity, addToast } = get();
-    const existing = expenses.find((expense) => expense.id === id);
-    if (!existing) return;
-    const now = new Date().toISOString();
-    set({
-      expenses: expenses.map((expense) =>
-        expense.id === id ? { ...expense, ...updates, updatedAt: now } : expense
-      ),
-    });
-    get()._persist();
-    addActivity('expense_saved', updates.label || existing.label, 'Updated expense details');
-    addToast({ type: 'success', title: 'Expense Saved', message: 'Expense updated.' });
-  },
-
-  deleteExpense: (id) => {
-    const { expenses, addActivity, addToast } = get();
-    const existing = expenses.find((expense) => expense.id === id);
-    if (!existing) return;
-    set({ expenses: expenses.filter((expense) => expense.id !== id) });
-    get()._persist();
-    addActivity('expense_deleted', existing.label, `Deleted expense ${existing.label}`);
-    addToast({ type: 'info', title: 'Expense Deleted', message: `${existing.label} removed.` });
-  },
-
-  addExtraIncome: (incomeInput) => {
-    const { extraIncomes, addActivity, addToast } = get();
-    const now = new Date().toISOString();
-    const newIncome: ExtraIncome = {
-      ...incomeInput,
-      id: `ext-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      createdAt: now,
-      updatedAt: now,
-    };
-    set({ extraIncomes: [...extraIncomes, newIncome] });
-    get()._persist();
-    addActivity(
-      'extra_income_saved',
-      newIncome.label,
-      `Added extra income ${newIncome.label} (€${(newIncome.amountCents / 100).toFixed(2)})`
-    );
-    addToast({
-      type: 'success',
-      title: 'Extra Income Added',
-      message: `${newIncome.label} saved.`,
-    });
-  },
-
-  updateExtraIncome: (id, updates) => {
-    const { extraIncomes, addActivity, addToast } = get();
-    const existing = extraIncomes.find((income) => income.id === id);
-    if (!existing) return;
-    const now = new Date().toISOString();
-    set({
-      extraIncomes: extraIncomes.map((income) =>
-        income.id === id ? { ...income, ...updates, updatedAt: now } : income
-      ),
-    });
-    get()._persist();
-    addActivity(
-      'extra_income_saved',
-      updates.label || existing.label,
-      'Updated extra income details'
-    );
-    addToast({
-      type: 'success',
-      title: 'Extra Income Saved',
-      message: 'Extra income updated.',
-    });
-  },
-
-  deleteExtraIncome: (id) => {
-    const { extraIncomes, addActivity, addToast } = get();
-    const existing = extraIncomes.find((income) => income.id === id);
-    if (!existing) return;
-    set({ extraIncomes: extraIncomes.filter((income) => income.id !== id) });
-    get()._persist();
-    addActivity('extra_income_deleted', existing.label, `Deleted extra income ${existing.label}`);
-    addToast({
-      type: 'info',
-      title: 'Extra Income Deleted',
-      message: `${existing.label} removed.`,
-    });
-  },
-
-  updateTurnoverTask: (id, updates) => {
-    const now = new Date().toISOString();
     set((state) => ({
-      turnoverTasks: state.turnoverTasks.map((task) =>
-        task.id === id ? { ...task, ...updates, updatedAt: now } : task
+      expenses: state.expenses.map((item) =>
+        item.id === id ? { ...item, ...updates, updatedAt: new Date().toISOString() } : item
       ),
     }));
+    get()._persist();
+  },
+  deleteExpense: (id) => {
+    const existing = get().expenses.find((item) => item.id === id);
+    if (!existing) return;
+    set((state) => ({ expenses: state.expenses.filter((item) => item.id !== id) }));
+    get()._persist();
+    get().addActivity('expense_deleted', existing.label, `Deleted expense ${existing.label}`);
   },
 
-  updateTaxConfig: (updates) => {
-    const { taxConfiguration, addActivity, addToast } = get();
-    set({ taxConfiguration: { ...taxConfiguration, ...updates } });
+  addExtraIncome: (input) => {
+    const now = new Date().toISOString();
+    const income: ExtraIncome = {
+      ...input,
+      id: `ext-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    set((state) => ({ extraIncomes: [...state.extraIncomes, income] }));
     get()._persist();
-    addActivity(
-      'tax_config_updated',
-      'Tax Settings',
-      'Updated tax rates and calculation assumptions'
-    );
-    addToast({
-      type: 'success',
-      title: 'Tax Settings Saved',
-      message: 'Tax parameters updated successfully.',
-    });
+    get().addActivity('extra_income_saved', income.label, `Added extra income ${income.label}`);
+  },
+  updateExtraIncome: (id, updates) => {
+    set((state) => ({
+      extraIncomes: state.extraIncomes.map((item) =>
+        item.id === id ? { ...item, ...updates, updatedAt: new Date().toISOString() } : item
+      ),
+    }));
+    get()._persist();
+  },
+  deleteExtraIncome: (id) => {
+    const existing = get().extraIncomes.find((item) => item.id === id);
+    if (!existing) return;
+    set((state) => ({ extraIncomes: state.extraIncomes.filter((item) => item.id !== id) }));
+    get()._persist();
+    get().addActivity('extra_income_deleted', existing.label, `Deleted extra income ${existing.label}`);
   },
 
   updateUserPreferences: (prefs) => {
@@ -546,20 +350,11 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   anonymizeAllPII: async () => {
-    const { bookings, addActivity, addToast } = get();
-    const anonymized = await storageService.anonymizePII(bookings);
-    set({ bookings: anonymized.map(normalizeBooking) });
+    const anonymized = await storageService.anonymizePII(get().bookings);
+    set({ bookings: anonymized });
     get()._persist();
-    addActivity(
-      'pii_anonymized',
-      'Privacy',
-      'Anonymized all guest PII records while retaining financial totals'
-    );
-    addToast({
-      type: 'success',
-      title: 'PII Anonymized',
-      message: 'Guest names, phone numbers, and notes removed.',
-    });
+    get().addActivity('pii_anonymized', 'Privacy', 'Anonymized all guest names');
+    get().addToast({ type: 'success', title: 'Guest Names Anonymized' });
   },
 
   clearAllData: async () => {
@@ -569,76 +364,42 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   importIcalEvents: (events, targetPropertyId, channel) => {
-    const { bookings, addActivity, addToast } = get();
     const now = new Date().toISOString();
-    const channelDefaults = getChannelDefaults(channel);
+    const currentBookings = [...get().bookings];
     let importedCount = 0;
-    const newBookings = [...bookings];
-
     for (const event of events) {
-      const exists = newBookings.some(
-        (booking) =>
-          booking.externalUid === event.externalUid &&
-          booking.propertyId === targetPropertyId
-      );
-      if (exists) continue;
-
-      newBookings.push(
-        normalizeBooking({
-          id: `b-ical-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          propertyId: targetPropertyId,
-          guestName: event.summary || `${channel.toUpperCase()} Guest`,
-          channel,
-          checkInDate: event.startDateStr,
-          checkOutDate: event.endDateStr,
-          nightlyRateCents: 12000,
-          adults: 2,
-          children: 0,
-          status: 'confirmed',
-          discountCents: 0,
-          cleaningFeeCents: 4000,
-          commissionMode: channelDefaults.mode,
-          commissionPercentage: channelDefaults.percentage,
-          commissionFixedAmountCents: 0,
-          suggestedCommissionPercentage: channelDefaults.percentage,
-          commissionOverrideEnabled: false,
-          checkInTime: '15:00',
-          checkOutTime: '10:00',
-          timezone: 'Europe/Malta',
-          earlyCheckIn: false,
-          lateCheckOut: false,
-          requiredTurnoverMinutes: 240,
-          turnoverStatus: 'sufficient',
-          source:
-            channel === 'airbnb'
-              ? 'airbnb_api'
-              : channel === 'booking_com'
-                ? 'booking_api'
-                : 'ical',
-          externalUid: event.externalUid,
-          importedAt: now,
-          syncStatus: 'synced',
-          createdAt: now,
-          updatedAt: now,
-        })
-      );
+      if (
+        currentBookings.some(
+          (booking) =>
+            booking.externalUid === event.externalUid && booking.propertyId === targetPropertyId
+        )
+      ) {
+        continue;
+      }
+      const normalized = normalizeBookingRecord({
+        id: `b-ical-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        propertyId: targetPropertyId,
+        guestName: event.summary || `${channel.toUpperCase()} Guest`,
+        channel,
+        checkInDate: event.startDateStr,
+        checkOutDate: event.endDateStr,
+        nightlyRateCents: 12000,
+        status: 'confirmed',
+        externalUid: event.externalUid,
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (!normalized) continue;
+      currentBookings.push(normalized);
       importedCount += 1;
     }
-
-    set({ bookings: newBookings });
+    set({ bookings: currentBookings });
     get()._persist();
-    addActivity(
-      'ical_imported',
-      'iCal Sync',
-      `Imported ${importedCount} external reservation(s) into property ${targetPropertyId}`
-    );
-    addToast({
+    get().addActivity('ical_imported', 'iCal Sync', `Imported ${importedCount} reservation(s)`);
+    get().addToast({
       type: importedCount > 0 ? 'success' : 'info',
       title: importedCount > 0 ? 'iCal Import Completed' : 'No New Reservations',
-      message:
-        importedCount > 0
-          ? `Imported ${importedCount} new reservation(s).`
-          : 'All matching external reservations were already imported.',
+      message: importedCount > 0 ? `${importedCount} reservation(s) imported.` : undefined,
     });
   },
 
@@ -658,120 +419,88 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       },
     }),
   closeConfirmation: () => set({ confirmationModal: null }),
-
   addToast: (toast) => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }));
-    const duration = toast.duration || 4500;
-    setTimeout(() => get().removeToast(id), duration);
+    setTimeout(() => get().removeToast(id), toast.duration || 4500);
   },
-
-  removeToast: (id) => {
-    set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) }));
-  },
-
+  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
   addActivity: (action, entity, description) => {
-    const newRecord: ActivityRecord = {
-      id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    const record: ActivityRecord = {
+      id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       timestamp: new Date().toISOString(),
       action,
       entity,
       description,
     };
-    set((state) => ({
-      activityHistory: [newRecord, ...state.activityHistory].slice(0, 100),
-    }));
+    set((state) => ({ activityHistory: [record, ...state.activityHistory].slice(0, 100) }));
     get()._persist();
   },
 
   importBackupData: (backup) => {
+    const normalized = normalizePersistedState({
+      ...backup,
+      selectedMonth: get().selectedMonth,
+      selectedYear: get().selectedYear,
+    });
     set({
-      taxConfiguration: {
-        ...DEFAULT_TAX_CONFIG,
-        ...backup.taxConfiguration,
-      },
-      bookings: backup.bookings.map(normalizeBooking),
-      expenses: backup.expenses,
-      extraIncomes: backup.extraIncomes,
-      userPreferences: {
-        ...DEFAULT_USER_PREFERENCES,
-        ...backup.userPreferences,
-      },
-      activityHistory: backup.activityHistory || [],
+      bookings: normalized.bookings,
+      expenses: normalized.expenses,
+      extraIncomes: normalized.extraIncomes,
+      userPreferences: normalized.userPreferences,
+      activityHistory: normalized.activityHistory,
     });
     get()._persist();
-    get().addActivity(
-      'backup_imported',
-      'Backup File',
-      `Imported backup containing ${backup.bookings.length} bookings.`
-    );
-    get().addToast({
-      type: 'success',
-      title: 'Data Imported',
-      message: 'All bookings, expenses, and tax settings restored.',
-    });
+    get().addActivity('backup_imported', 'Backup File', `Imported ${normalized.bookings.length} bookings`);
+    get().addToast({ type: 'success', title: 'Data Imported' });
   },
 
   resetDefaultSeedData: () => {
     const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth() + 1;
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
     set({
-      taxConfiguration: { ...DEFAULT_TAX_CONFIG },
-      bookings: createSeedBookings(currentYear, currentMonth).map(normalizeBooking),
-      expenses: createDefaultExpenses(currentYear, currentMonth),
-      extraIncomes: createSeedExtraIncome(currentYear, currentMonth),
-      selectedMonth: currentMonth,
-      selectedYear: currentYear,
+      bookings: createSeedBookings(year, month),
+      expenses: createDefaultExpenses(year, month),
+      extraIncomes: createSeedExtraIncome(year, month),
+      selectedMonth: month,
+      selectedYear: year,
       userPreferences: { ...DEFAULT_USER_PREFERENCES },
       activityHistory: [
         {
           id: `act-${Date.now()}`,
           timestamp: new Date().toISOString(),
-          action: 'tax_config_updated',
+          action: 'data_cleared',
           entity: 'System',
-          description: 'Reset system to clean seed data',
+          description: 'Reset system to simplified seed data',
         },
       ],
     });
     get()._persist();
-    get().addToast({
-      type: 'info',
-      title: 'Reset Complete',
-      message: 'Restored default properties, bookings, and tax settings.',
-    });
+    get().addToast({ type: 'info', title: 'Reset Complete' });
   },
 
   _persist: () => {
-    const persistedState = createPersistedSnapshot(get());
-    PersistenceRepository.save(redactLocalSnapshot(persistedState));
-    void storageService.saveState(persistedState);
+    const snapshot = createPersistedSnapshot(get());
+    PersistenceRepository.save(redactLocalSnapshot(snapshot));
+    void storageService.saveState(snapshot);
   },
 }));
 
 const initialSnapshot = createPersistedSnapshot(useDashboardStore.getState());
-
 if (containsRedactedGuests(initialSnapshot.bookings)) {
   void storageService
     .loadState()
-    .then((hydratedState) => {
+    .then((state) => {
       if (!containsRedactedGuests(useDashboardStore.getState().bookings)) return;
-
       useDashboardStore.setState({
-        selectedMonth: hydratedState.selectedMonth,
-        selectedYear: hydratedState.selectedYear,
-        taxConfiguration: {
-          ...DEFAULT_TAX_CONFIG,
-          ...hydratedState.taxConfiguration,
-        },
-        bookings: hydratedState.bookings.map(normalizeBooking),
-        expenses: hydratedState.expenses,
-        extraIncomes: hydratedState.extraIncomes,
-        userPreferences: {
-          ...DEFAULT_USER_PREFERENCES,
-          ...hydratedState.userPreferences,
-        },
-        activityHistory: hydratedState.activityHistory,
+        selectedMonth: state.selectedMonth,
+        selectedYear: state.selectedYear,
+        bookings: state.bookings,
+        expenses: state.expenses,
+        extraIncomes: state.extraIncomes,
+        userPreferences: state.userPreferences,
+        activityHistory: state.activityHistory,
       });
     })
     .catch((error) => console.error('Encrypted dashboard hydration failed:', error));
@@ -779,5 +508,5 @@ if (containsRedactedGuests(initialSnapshot.bookings)) {
   void storageService
     .saveState(initialSnapshot)
     .then(() => PersistenceRepository.save(redactLocalSnapshot(initialSnapshot)))
-    .catch((error) => console.error('Dashboard PII migration failed:', error));
+    .catch((error) => console.error('Dashboard migration failed:', error));
 }

@@ -1,15 +1,16 @@
 import { Booking, PersistedState } from '../types';
 import { encryptionService } from './encryptionService';
 import {
-  DEFAULT_TAX_CONFIG,
-  DEFAULT_USER_PREFERENCES,
   createDefaultExpenses,
   createSeedBookings,
   createSeedExtraIncome,
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_USER_PREFERENCES,
+  normalizePersistedState,
 } from './persistenceRepository';
 
 const DB_NAME = 'ShortLetHQ_DB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'dashboard_state';
 const STATE_KEY = 'current_state';
 const FALLBACK_STORAGE_KEY = 'short_let_fallback_state';
@@ -27,30 +28,7 @@ function createPrivateFallbackState(state: PersistedState): PersistedState {
     bookings: state.bookings.map((booking) => ({
       ...booking,
       guestName: REDACTED_GUEST_NAME,
-      contactEmail: undefined,
-      contactPhone: undefined,
-      address: undefined,
-      identificationDetails: undefined,
-      notes: undefined,
     })),
-  };
-}
-
-function normalizePersistedState(state: PersistedState): PersistedState {
-  return {
-    ...state,
-    taxConfiguration: {
-      ...DEFAULT_TAX_CONFIG,
-      ...state.taxConfiguration,
-    },
-    userPreferences: {
-      ...DEFAULT_USER_PREFERENCES,
-      ...state.userPreferences,
-    },
-    bookings: Array.isArray(state.bookings) ? state.bookings : [],
-    expenses: Array.isArray(state.expenses) ? state.expenses : [],
-    extraIncomes: Array.isArray(state.extraIncomes) ? state.extraIncomes : [],
-    activityHistory: Array.isArray(state.activityHistory) ? state.activityHistory : [],
   };
 }
 
@@ -60,21 +38,16 @@ class StorageService {
 
   private getDB(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
-
     this.dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
-        }
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
       request.onblocked = () => reject(new Error('IndexedDB open request was blocked.'));
     });
-
     return this.dbPromise;
   }
 
@@ -85,97 +58,51 @@ class StorageService {
         state.bookings.map(async (booking) => ({
           ...booking,
           guestName: await encryptionService.encrypt(booking.guestName),
-          contactEmail: booking.contactEmail
-            ? await encryptionService.encrypt(booking.contactEmail)
-            : undefined,
-          contactPhone: booking.contactPhone
-            ? await encryptionService.encrypt(booking.contactPhone)
-            : undefined,
-          address: booking.address
-            ? await encryptionService.encrypt(booking.address)
-            : undefined,
-          identificationDetails: booking.identificationDetails
-            ? await encryptionService.encrypt(booking.identificationDetails)
-            : undefined,
-          notes: booking.notes
-            ? await encryptionService.encrypt(booking.notes)
-            : undefined,
         }))
       );
-      const stateToSave: PersistedState = {
-        ...state,
-        bookings: encryptedBookings,
-      };
-
       await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction(STORE_NAME, 'readwrite');
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
         transaction.onabort = () => reject(transaction.error);
-        transaction.objectStore(STORE_NAME).put(stateToSave, STATE_KEY);
+        transaction.objectStore(STORE_NAME).put({ ...state, bookings: encryptedBookings }, STATE_KEY);
       });
-
       localStorage.removeItem(FALLBACK_STORAGE_KEY);
     } catch (error) {
-      console.error('IndexedDB save failed; storing a PII-redacted fallback:', error);
-      localStorage.setItem(
-        FALLBACK_STORAGE_KEY,
-        JSON.stringify(createPrivateFallbackState(state))
-      );
+      console.error('IndexedDB save failed; storing an anonymized fallback:', error);
+      localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(createPrivateFallbackState(state)));
     }
   }
 
   public saveState(state: PersistedState): Promise<void> {
-    const snapshot = cloneState(state);
-    this.saveQueue = this.saveQueue
-      .catch(() => undefined)
-      .then(() => this.writeState(snapshot));
+    const snapshot = cloneState(normalizePersistedState(state));
+    this.saveQueue = this.saveQueue.catch(() => undefined).then(() => this.writeState(snapshot));
     return this.saveQueue;
   }
 
   public async loadState(): Promise<PersistedState> {
     const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth() + 1;
-
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
     await this.saveQueue.catch(() => undefined);
 
     try {
       const db = await this.getDB();
-      const rawState = await new Promise<PersistedState | null>((resolve, reject) => {
+      const rawState = await new Promise<unknown>((resolve, reject) => {
         const transaction = db.transaction(STORE_NAME, 'readonly');
         const request = transaction.objectStore(STORE_NAME).get(STATE_KEY);
-        request.onsuccess = () => resolve(request.result || null);
+        request.onsuccess = () => resolve(request.result ?? null);
         request.onerror = () => reject(request.error);
       });
-
-      if (rawState?.bookings) {
-        const decryptedBookings: Booking[] = await Promise.all(
-          rawState.bookings.map(async (booking) => ({
+      const normalized = normalizePersistedState(rawState, year, month);
+      if (normalized.bookings.length > 0) {
+        normalized.bookings = await Promise.all(
+          normalized.bookings.map(async (booking) => ({
             ...booking,
             guestName: await encryptionService.decrypt(booking.guestName),
-            contactEmail: booking.contactEmail
-              ? await encryptionService.decrypt(booking.contactEmail)
-              : undefined,
-            contactPhone: booking.contactPhone
-              ? await encryptionService.decrypt(booking.contactPhone)
-              : undefined,
-            address: booking.address
-              ? await encryptionService.decrypt(booking.address)
-              : undefined,
-            identificationDetails: booking.identificationDetails
-              ? await encryptionService.decrypt(booking.identificationDetails)
-              : undefined,
-            notes: booking.notes
-              ? await encryptionService.decrypt(booking.notes)
-              : undefined,
           }))
         );
-
-        return normalizePersistedState({
-          ...rawState,
-          bookings: decryptedBookings,
-        });
+        return normalized;
       }
     } catch (error) {
       console.warn('Failed to load state from IndexedDB:', error);
@@ -184,9 +111,7 @@ class StorageService {
     for (const storageKey of [FALLBACK_STORAGE_KEY, DASHBOARD_STORAGE_KEY]) {
       try {
         const fallback = localStorage.getItem(storageKey);
-        if (fallback) {
-          return normalizePersistedState(JSON.parse(fallback) as PersistedState);
-        }
+        if (fallback) return normalizePersistedState(JSON.parse(fallback), year, month);
       } catch (error) {
         console.warn(`Failed to load local state from ${storageKey}:`, error);
         localStorage.removeItem(storageKey);
@@ -194,25 +119,23 @@ class StorageService {
     }
 
     const initialState: PersistedState = {
-      version: 1,
-      taxConfiguration: { ...DEFAULT_TAX_CONFIG },
-      bookings: createSeedBookings(currentYear, currentMonth),
-      expenses: createDefaultExpenses(currentYear, currentMonth),
-      extraIncomes: createSeedExtraIncome(currentYear, currentMonth),
-      selectedMonth: currentMonth,
-      selectedYear: currentYear,
+      version: CURRENT_SCHEMA_VERSION,
+      bookings: createSeedBookings(year, month),
+      expenses: createDefaultExpenses(year, month),
+      extraIncomes: createSeedExtraIncome(year, month),
+      selectedMonth: month,
+      selectedYear: year,
       userPreferences: { ...DEFAULT_USER_PREFERENCES },
       activityHistory: [
         {
           id: 'act-init',
           timestamp: new Date().toISOString(),
-          action: 'tax_config_updated',
+          action: 'data_cleared',
           entity: 'System',
-          description: 'Initial system seed state loaded',
+          description: 'Initial simplified data loaded',
         },
       ],
     };
-
     await this.saveState(initialState);
     return initialState;
   }
@@ -221,17 +144,11 @@ class StorageService {
     return currentBookings.map((booking, index) => ({
       ...booking,
       guestName: `Guest ${String.fromCharCode(65 + (index % 26))}${index + 1}`,
-      contactEmail: undefined,
-      contactPhone: undefined,
-      address: undefined,
-      identificationDetails: undefined,
-      notes: undefined,
     }));
   }
 
   public async clearAll(): Promise<void> {
     await this.saveQueue.catch(() => undefined);
-
     try {
       const db = await this.getDB();
       await new Promise<void>((resolve, reject) => {
@@ -244,7 +161,6 @@ class StorageService {
     } catch (error) {
       console.error('Failed to clear IndexedDB:', error);
     }
-
     localStorage.removeItem(DASHBOARD_STORAGE_KEY);
     localStorage.removeItem(FALLBACK_STORAGE_KEY);
     localStorage.removeItem(CRYPTO_STORAGE_KEY);

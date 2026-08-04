@@ -1,10 +1,4 @@
-import {
-  Booking,
-  Channel,
-  Expense,
-  ExtraIncome,
-  TaxConfiguration,
-} from '../types';
+import { Booking, Channel, Expense, ExtraIncome } from '../types';
 import { ALL_PROPERTIES, CHANNEL_CONFIG } from '../config/locations';
 import { MONTH_SHORT_NAMES } from '../utils/dateUtilities';
 import {
@@ -22,21 +16,16 @@ export interface ReportFilter {
 }
 
 export interface ReportSummary {
-  grossBookingIncomeCents: number;
-  otaCommissionCents: number;
-  netBookingIncomeCents: number;
+  bookingIncomeCents: number;
   extraIncomeCents: number;
   totalExpensesCents: number;
-  calculatedTaxesCents: number | null;
-  netBalanceCents: number | null;
-  preTaxBalanceCents: number;
+  netBalanceCents: number;
   occupiedNights: number;
   availableNights: number;
   occupancyRatePct: number;
   adrCents: number;
   revParCents: number;
   bookingCount: number;
-  isTaxConfigured: boolean;
 }
 
 export interface FinancialSeriesPoint extends ReportSummary {
@@ -49,9 +38,7 @@ export interface FinancialSeriesPoint extends ReportSummary {
 export interface ChannelSeriesPoint {
   channel: Channel;
   label: string;
-  grossBookingIncomeCents: number;
-  otaCommissionCents: number;
-  netBookingIncomeCents: number;
+  bookingIncomeCents: number;
   bookingCount: number;
 }
 
@@ -79,20 +66,12 @@ function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
-function bookingMatchesScope(
+function matchedNights(
   booking: Booking,
-  propertyIds: Set<string>
-): boolean {
-  return propertyIds.has(booking.propertyId);
-}
-
-function getMatchedBookingNights(
-  booking: Booking,
-  taxConfig: TaxConfiguration,
   year: number,
   months: Set<number>
 ) {
-  return getBookingMonthlyAllocatedNights(booking, taxConfig).filter(
+  return getBookingMonthlyAllocatedNights(booking).filter(
     (night) => night.year === year && months.has(night.month)
   );
 }
@@ -101,7 +80,6 @@ export function calculateReportSummary(
   bookings: Booking[],
   expenses: Expense[],
   extraIncomes: ExtraIncome[],
-  taxConfig: TaxConfiguration,
   filter: ReportFilter
 ): ReportSummary {
   const months = getMonths(filter);
@@ -109,94 +87,52 @@ export function calculateReportSummary(
   const propertyIds = getPropertyIds(filter.propertyId);
   const propertyIdSet = new Set(propertyIds);
 
-  let grossBookingIncomeCents = 0;
-  let otaCommissionCents = 0;
-  let netBookingIncomeCents = 0;
+  let bookingIncomeCents = 0;
   let extraIncomeCents = 0;
   let totalExpensesCents = 0;
-  let calculatedTaxesCents: number | null = 0;
-  let netBalanceCents: number | null = 0;
-  let isTaxConfigured = true;
 
   for (const month of months) {
     for (const propertyId of propertyIds) {
-      const financials = calculatePropertyFinancials(
+      const item = calculatePropertyFinancials(
         propertyId,
         filter.year,
         month,
         bookings,
         expenses,
-        extraIncomes,
-        taxConfig
+        extraIncomes
       );
-
-      grossBookingIncomeCents += financials.grossBookingIncomeCents;
-      otaCommissionCents += financials.otaCommissionCents;
-      netBookingIncomeCents += financials.netBookingIncomeCents;
-      extraIncomeCents += financials.extraIncomeCents;
-      totalExpensesCents += financials.totalExpensesCents;
-
-      if (!financials.isTaxConfigured) {
-        isTaxConfigured = false;
-        calculatedTaxesCents = null;
-        netBalanceCents = null;
-      } else if (isTaxConfigured) {
-        calculatedTaxesCents =
-          (calculatedTaxesCents ?? 0) + (financials.calculatedTaxesCents ?? 0);
-        netBalanceCents =
-          (netBalanceCents ?? 0) + (financials.netBalanceCents ?? 0);
-      }
+      bookingIncomeCents += item.bookingIncomeCents;
+      extraIncomeCents += item.extraIncomeCents;
+      totalExpensesCents += item.totalExpensesCents;
     }
   }
 
   let occupiedNights = 0;
   const bookingIds = new Set<string>();
-
   for (const booking of bookings) {
-    if (booking.status === 'cancelled' || !bookingMatchesScope(booking, propertyIdSet)) {
-      continue;
-    }
-
-    const matchedNights = getMatchedBookingNights(
-      booking,
-      taxConfig,
-      filter.year,
-      monthSet
-    );
-
-    if (matchedNights.length > 0) {
-      occupiedNights += matchedNights.length;
-      bookingIds.add(booking.id);
-    }
+    if (booking.status === 'cancelled' || !propertyIdSet.has(booking.propertyId)) continue;
+    const nights = matchedNights(booking, filter.year, monthSet);
+    if (nights.length === 0) continue;
+    occupiedNights += nights.length;
+    bookingIds.add(booking.id);
   }
 
   const availableNights =
     propertyIds.length * months.reduce((sum, month) => sum + daysInMonth(filter.year, month), 0);
   const occupancyRatePct =
     availableNights > 0 ? Math.round((occupiedNights / availableNights) * 1000) / 10 : 0;
-  const adrCents =
-    occupiedNights > 0 ? Math.round(grossBookingIncomeCents / occupiedNights) : 0;
-  const revParCents =
-    availableNights > 0 ? Math.round(grossBookingIncomeCents / availableNights) : 0;
-  const preTaxBalanceCents =
-    netBookingIncomeCents + extraIncomeCents - totalExpensesCents;
 
   return {
-    grossBookingIncomeCents,
-    otaCommissionCents,
-    netBookingIncomeCents,
+    bookingIncomeCents,
     extraIncomeCents,
     totalExpensesCents,
-    calculatedTaxesCents,
-    netBalanceCents,
-    preTaxBalanceCents,
+    netBalanceCents: bookingIncomeCents + extraIncomeCents - totalExpensesCents,
     occupiedNights,
     availableNights,
     occupancyRatePct,
-    adrCents,
-    revParCents,
+    adrCents: occupiedNights > 0 ? Math.round(bookingIncomeCents / occupiedNights) : 0,
+    revParCents: availableNights > 0 ? Math.round(bookingIncomeCents / availableNights) : 0,
     bookingCount: bookingIds.size,
-    isTaxConfigured,
   };
 }
 
@@ -204,27 +140,18 @@ export function buildMonthlyFinancialSeries(
   bookings: Booking[],
   expenses: Expense[],
   extraIncomes: ExtraIncome[],
-  taxConfig: TaxConfiguration,
   year: number,
   propertyId: string | 'all'
 ): FinancialSeriesPoint[] {
   return Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
-    const summary = calculateReportSummary(
-      bookings,
-      expenses,
-      extraIncomes,
-      taxConfig,
-      {
+    return {
+      ...calculateReportSummary(bookings, expenses, extraIncomes, {
         period: 'monthly',
         year,
         month,
         propertyId,
-      }
-    );
-
-    return {
-      ...summary,
+      }),
       key: `${year}-${String(month).padStart(2, '0')}`,
       label: MONTH_SHORT_NAMES[index],
       month,
@@ -236,7 +163,6 @@ export function buildPropertyFinancialSeries(
   bookings: Booking[],
   expenses: Expense[],
   extraIncomes: ExtraIncome[],
-  taxConfig: TaxConfiguration,
   filter: ReportFilter
 ): FinancialSeriesPoint[] {
   const properties =
@@ -244,86 +170,53 @@ export function buildPropertyFinancialSeries(
       ? ALL_PROPERTIES
       : ALL_PROPERTIES.filter((property) => property.id === filter.propertyId);
 
-  return properties.map((property) => {
-    const summary = calculateReportSummary(
-      bookings,
-      expenses,
-      extraIncomes,
-      taxConfig,
-      {
-        ...filter,
-        propertyId: property.id,
-      }
-    );
-
-    return {
-      ...summary,
-      key: property.id,
-      label: property.name,
+  return properties.map((property) => ({
+    ...calculateReportSummary(bookings, expenses, extraIncomes, {
+      ...filter,
       propertyId: property.id,
-    };
-  });
+    }),
+    key: property.id,
+    label: property.name,
+    propertyId: property.id,
+  }));
 }
 
 export function buildChannelFinancialSeries(
   bookings: Booking[],
-  taxConfig: TaxConfiguration,
   filter: ReportFilter
 ): ChannelSeriesPoint[] {
   const months = new Set(getMonths(filter));
   const propertyIds = new Set(getPropertyIds(filter.propertyId));
 
   return CHANNELS.map((channel) => {
-    let grossBookingIncomeCents = 0;
-    let otaCommissionCents = 0;
-    let netBookingIncomeCents = 0;
+    let bookingIncomeCents = 0;
     const bookingIds = new Set<string>();
 
     for (const booking of bookings) {
       if (
         booking.status === 'cancelled' ||
         booking.channel !== channel ||
-        !bookingMatchesScope(booking, propertyIds)
+        !propertyIds.has(booking.propertyId)
       ) {
         continue;
       }
-
-      const nights = getMatchedBookingNights(
-        booking,
-        taxConfig,
-        filter.year,
-        months
-      );
-
+      const nights = matchedNights(booking, filter.year, months);
       if (nights.length === 0) continue;
-
       bookingIds.add(booking.id);
-      for (const night of nights) {
-        grossBookingIncomeCents += night.grossNightRevenueCents;
-        otaCommissionCents += night.otaCommissionCents;
-        netBookingIncomeCents += night.netNightRevenueCents;
-      }
+      bookingIncomeCents += nights.reduce((sum, night) => sum + night.revenueCents, 0);
     }
 
     return {
       channel,
       label: CHANNEL_CONFIG[channel].name,
-      grossBookingIncomeCents,
-      otaCommissionCents,
-      netBookingIncomeCents,
+      bookingIncomeCents,
       bookingCount: bookingIds.size,
     };
-  }).filter(
-    (item) =>
-      item.grossBookingIncomeCents !== 0 ||
-      item.otaCommissionCents !== 0 ||
-      item.bookingCount !== 0
-  );
+  }).filter((item) => item.bookingIncomeCents !== 0 || item.bookingCount !== 0);
 }
 
 export function buildExpenseSeries(
   expenses: Expense[],
-  summary: ReportSummary,
   filter: ReportFilter
 ): ExpenseSeriesPoint[] {
   const months = new Set(getMonths(filter));
@@ -338,17 +231,8 @@ export function buildExpenseSeries(
     ) {
       continue;
     }
-
     const label = expense.category?.trim() || expense.label?.trim() || 'Other';
     categoryTotals.set(label, (categoryTotals.get(label) ?? 0) + expense.amountCents);
-  }
-
-  if (summary.otaCommissionCents > 0) {
-    categoryTotals.set('OTA Commission', summary.otaCommissionCents);
-  }
-
-  if ((summary.calculatedTaxesCents ?? 0) > 0) {
-    categoryTotals.set('Taxes', summary.calculatedTaxesCents ?? 0);
   }
 
   return Array.from(categoryTotals.entries())

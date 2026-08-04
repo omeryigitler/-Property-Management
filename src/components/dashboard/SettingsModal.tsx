@@ -1,135 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Activity,
-  Building2,
-  Database,
-  Download,
-  LayoutDashboard,
-  MapPin,
-  Plus,
-  RotateCcw,
-  Save,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  SlidersHorizontal,
-  WalletCards,
-  X,
-} from 'lucide-react';
+import { Building2, Database, Eye, Home, Plus, SlidersHorizontal, WalletCards, X } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 import { getActiveProperties, usePropertyStore } from '../../store/usePropertyStore';
-import { PropertyConfig } from '../../types';
 import { CustomSelect } from '../common/CustomSelect';
-import { eurosToCents } from '../../utils/currency';
-import { isTaxConfigured } from '../../utils/taxCalculations';
-import { MONTH_NAMES } from '../../utils/dateUtilities';
 import { MonthlyFinanceSettings } from './settings/MonthlyFinanceSettings';
 
 type SettingsSection = 'overview' | 'properties' | 'finance' | 'display' | 'data';
 
-const sectionOptions: Array<{
-  id: SettingsSection;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}> = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'properties', label: 'Properties', icon: Building2 },
-  { id: 'finance', label: 'Monthly Finance', icon: WalletCards },
-  { id: 'display', label: 'Display', icon: SlidersHorizontal },
-  { id: 'data', label: 'Tax & Data', icon: Database },
+const sections: Array<{ id: SettingsSection; label: string; icon: React.ReactNode }> = [
+  { id: 'overview', label: 'Overview', icon: <SlidersHorizontal className="h-4 w-4" /> },
+  { id: 'properties', label: 'Properties', icon: <Building2 className="h-4 w-4" /> },
+  { id: 'finance', label: 'Monthly Finance', icon: <WalletCards className="h-4 w-4" /> },
+  { id: 'display', label: 'Display', icon: <Eye className="h-4 w-4" /> },
+  { id: 'data', label: 'Data', icon: <Database className="h-4 w-4" /> },
 ];
-
-function PropertyEditorCard({
-  property,
-  onSaved,
-}: {
-  property: PropertyConfig;
-  onSaved: (property: PropertyConfig) => void;
-}) {
-  const locations = usePropertyStore((state) => state.locations);
-  const updateProperty = usePropertyStore((state) => state.updateProperty);
-  const [name, setName] = useState(property.name);
-  const [locationId, setLocationId] = useState(property.locationId);
-  const [active, setActive] = useState(property.active !== false);
-
-  useEffect(() => {
-    setName(property.name);
-    setLocationId(property.locationId);
-    setActive(property.active !== false);
-  }, [property]);
-
-  useEffect(() => {
-    if (locations.some((location) => location.id === locationId)) return;
-    setLocationId(locations[0]?.id ?? '');
-  }, [locationId, locations]);
-
-  const locationOptions = locations.map((location) => ({
-    value: location.id,
-    label: location.name,
-  }));
-
-  const handleSave = () => {
-    if (!name.trim() || !locationId) return;
-
-    updateProperty(property.id, {
-      name: name.trim().toUpperCase(),
-      locationId,
-      active,
-    });
-
-    const saved = usePropertyStore
-      .getState()
-      .properties.find((item) => item.id === property.id);
-    if (saved) {
-      setActive(saved.active !== false);
-      onSaved(saved);
-    }
-  };
-
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/75 p-3.5">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_190px_auto] lg:items-end">
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-            Property Name
-          </label>
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-bold text-slate-100 outline-none focus:border-cyan-500"
-          />
-        </div>
-
-        <CustomSelect
-          label="Location"
-          value={locationId}
-          onChange={(value) => setLocationId(String(value))}
-          options={locationOptions}
-        />
-
-        <div className="flex items-center gap-2">
-          <label className="flex h-10 min-w-28 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-bold text-slate-200 lg:flex-none">
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(event) => setActive(event.target.checked)}
-              className="themed-checkbox"
-            />
-            Active
-          </label>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="flex h-10 min-w-24 flex-1 items-center justify-center gap-1.5 rounded-lg bg-cyan-600 px-3 text-xs font-black uppercase tracking-wider text-white hover:bg-cyan-500 lg:flex-none"
-          >
-            <Save className="h-3.5 w-3.5" />
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function SettingsModal() {
   const activeModal = useDashboardStore((state) => state.activeModal);
@@ -137,495 +21,83 @@ export function SettingsModal() {
   const closeModal = useDashboardStore((state) => state.closeModal);
   const openModal = useDashboardStore((state) => state.openModal);
   const openConfirmation = useDashboardStore((state) => state.openConfirmation);
-  const addToast = useDashboardStore((state) => state.addToast);
-  const addActivity = useDashboardStore((state) => state.addActivity);
-  const resetDefaultSeedData = useDashboardStore((state) => state.resetDefaultSeedData);
-
-  const selectedMonth = useDashboardStore((state) => state.selectedMonth);
-  const selectedYear = useDashboardStore((state) => state.selectedYear);
-  const taxConfiguration = useDashboardStore((state) => state.taxConfiguration);
+  const clearAllData = useDashboardStore((state) => state.clearAllData);
   const preferences = useDashboardStore((state) => state.userPreferences);
-  const updateUserPreferences = useDashboardStore((state) => state.updateUserPreferences);
-
+  const updatePreferences = useDashboardStore((state) => state.updateUserPreferences);
   const locations = usePropertyStore((state) => state.locations);
   const properties = usePropertyStore((state) => state.properties);
   const addLocation = usePropertyStore((state) => state.addLocation);
   const addProperty = usePropertyStore((state) => state.addProperty);
-  const resetProperties = usePropertyStore((state) => state.resetProperties);
-  const activeProperties = getActiveProperties(properties);
-
-  const requestedSection = modalParams.section as SettingsSection | undefined;
+  const updateProperty = usePropertyStore((state) => state.updateProperty);
   const [section, setSection] = useState<SettingsSection>('overview');
   const [newLocationName, setNewLocationName] = useState('');
   const [newPropertyName, setNewPropertyName] = useState('');
-  const [newLocationId, setNewLocationId] = useState(locations[0]?.id ?? '');
-  const [newPropertyRent, setNewPropertyRent] = useState('0');
-
-  const taxesConfigured = isTaxConfigured(taxConfiguration);
-
-  const locationOptions = useMemo(
-    () => locations.map((location) => ({ value: location.id, label: location.name })),
-    [locations]
-  );
+  const [newPropertyLocation, setNewPropertyLocation] = useState(locations[0]?.id ?? '');
 
   useEffect(() => {
-    if (activeModal === 'settings') {
-      setSection(requestedSection ?? 'overview');
-    }
-  }, [activeModal, requestedSection]);
+    if (activeModal !== 'settings') return;
+    const requested = modalParams.section as SettingsSection | undefined;
+    setSection(sections.some((item) => item.id === requested) ? requested! : 'overview');
+  }, [activeModal, modalParams]);
 
-  useEffect(() => {
-    if (locations.some((location) => location.id === newLocationId)) return;
-    setNewLocationId(locations[0]?.id ?? '');
-  }, [locations, newLocationId]);
-
+  const activeProperties = useMemo(() => getActiveProperties(properties), [properties]);
+  const togglePreference = (key: 'stickyDailyTotal' | 'showProvisionalBlock' | 'compactGridRows' | 'privacyMode', value: boolean) => {
+    updatePreferences({ [key]: value });
+  };
   if (activeModal !== 'settings') return null;
 
-  const handleAddLocation = () => {
+  const locationOptions = locations.map((location) => ({ value: location.id, label: location.name }));
+  const addNewLocation = () => {
     const location = addLocation(newLocationName);
-    if (!location) {
-      addToast({
-        type: 'error',
-        title: 'Location Not Added',
-        message: 'Enter a unique location name.',
-      });
-      return;
+    if (location) {
+      setNewLocationName('');
+      setNewPropertyLocation(location.id);
     }
-
-    setNewLocationId(location.id);
-    setNewLocationName('');
-    addActivity('location_saved', location.name, 'Added a new property location');
-    addToast({
-      type: 'success',
-      title: 'Location Added',
-      message: `${location.name} is ready for new properties.`,
-    });
   };
-
-  const handleAddProperty = () => {
-    const property = addProperty(newPropertyName, newLocationId);
-    if (!property) {
-      addToast({
-        type: 'error',
-        title: 'Property Not Added',
-        message: 'Enter a property name and select a valid location.',
-      });
-      return;
-    }
-
-    const rentCents = eurosToCents(newPropertyRent);
-    if (rentCents > 0) {
-      const now = new Date().toISOString();
-      useDashboardStore.setState((state) => ({
-        expenses: [
-          ...state.expenses,
-          {
-            id: `exp-rent-${property.id}-${selectedYear}-${selectedMonth}`,
-            propertyId: property.id,
-            year: selectedYear,
-            month: selectedMonth,
-            label: 'Rent',
-            amountCents: rentCents,
-            category: 'Rent',
-            isDeductible: true,
-            isRecurring: true,
-            notes: 'Monthly property rent',
-            createdAt: now,
-            updatedAt: now,
-          },
-        ],
-      }));
-      useDashboardStore.getState()._persist();
-    }
-
-    const locationName = locations.find((location) => location.id === property.locationId)?.name;
-    addActivity(
-      'property_saved',
-      property.name,
-      `Added property in ${locationName || property.locationId}`
-    );
-    addToast({ type: 'success', title: 'Property Added', message: `${property.name} is now active.` });
-    setNewPropertyName('');
-    setNewPropertyRent('0');
-  };
-
-  const handlePropertySaved = (property: PropertyConfig) => {
-    addActivity(
-      'property_saved',
-      property.name,
-      `${property.active ? 'Updated' : 'Deactivated'} property configuration`
-    );
-    addToast({
-      type: 'success',
-      title: 'Property Saved',
-      message: `${property.name} settings updated.`,
-    });
-  };
-
-  const handleReset = () => {
-    openConfirmation({
-      title: 'Reset Application Data?',
-      message:
-        'This restores default locations, properties, sample bookings, expenses and tax configuration. Current custom data will be overwritten.',
-      confirmText: 'Reset All Data',
-      variant: 'danger',
-      onConfirm: () => {
-        resetProperties();
-        resetDefaultSeedData();
-        closeModal();
-      },
-    });
-  };
-
-  const navButton = (item: (typeof sectionOptions)[number]) => {
-    const Icon = item.icon;
-    const selected = section === item.id;
-
-    return (
-      <button
-        key={item.id}
-        type="button"
-        onClick={() => setSection(item.id)}
-        className={`flex min-h-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-[10px] font-black uppercase tracking-wider transition-colors sm:w-full sm:justify-start ${
-          selected
-            ? 'border-cyan-600 bg-cyan-950/80 text-cyan-200'
-            : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:bg-slate-800 hover:text-slate-100'
-        }`}
-      >
-        <Icon className="h-3.5 w-3.5" />
-        {item.label}
-      </button>
-    );
+  const addNewProperty = () => {
+    const property = addProperty(newPropertyName, newPropertyLocation);
+    if (property) setNewPropertyName('');
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-0 backdrop-blur-md sm:p-4">
-      <div className="flex h-[100dvh] w-full flex-col overflow-hidden border-slate-700/90 bg-slate-900 text-slate-100 shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:max-w-6xl sm:rounded-2xl sm:border">
-        <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3.5 sm:px-5">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex-shrink-0 rounded-lg border border-cyan-800 bg-cyan-950/70 p-2 text-cyan-300">
-              <Settings className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="truncate font-display text-base font-black uppercase tracking-tight sm:text-lg">
-                Settings & Management
-              </h3>
-              <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Properties, monthly finance, tax, backup and display
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={closeModal}
-            className="flex-shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
-            aria-label="Close settings"
-          >
-            <X className="h-5 w-5" />
-          </button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-0 backdrop-blur-md sm:p-4">
+      <div className="relative flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden bg-slate-900 text-slate-100 shadow-2xl sm:h-[92dvh] sm:rounded-2xl sm:border sm:border-slate-700">
+        <header className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-4 sm:px-6">
+          <div><h3 className="font-display text-lg font-black uppercase">Settings & Management</h3><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Properties, finance, display and data</p></div>
+          <button type="button" onClick={closeModal} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800"><X className="h-5 w-5" /></button>
         </header>
-
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-          <nav className="no-scrollbar flex flex-shrink-0 gap-2 overflow-x-auto border-b border-slate-800 bg-slate-900 px-3 py-2.5 sm:w-48 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3">
-            {sectionOptions.map(navButton)}
+          <nav className="flex flex-shrink-0 gap-1 overflow-x-auto border-b border-slate-800 bg-slate-950 p-2 no-scrollbar sm:w-56 sm:flex-col sm:border-b-0 sm:border-r sm:p-3">
+            {sections.map((item) => <button key={item.id} type="button" onClick={() => setSection(item.id)} className={`flex h-10 flex-shrink-0 items-center gap-2 rounded-lg px-3 text-left text-[10px] font-black uppercase tracking-wider ${section === item.id ? 'bg-[#ff3e00] text-white' : 'text-slate-400 hover:bg-slate-900'}`}>{item.icon}{item.label}</button>)}
           </nav>
-
-          <main className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 no-scrollbar sm:p-6">
             {section === 'overview' && (
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-display text-sm font-black uppercase tracking-wide text-slate-100">
-                    Management Overview
-                  </h4>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Editing is kept here so the calendar and finance ledger remain clean and readable.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() => setSection('properties')}
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-cyan-700"
-                  >
-                    <Building2 className="h-5 w-5 text-cyan-400" />
-                    <p className="mt-3 text-sm font-black text-slate-100">Properties</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {locations.length} locations · {activeProperties.length} active of {properties.length} properties
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSection('finance')}
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-violet-700"
-                  >
-                    <WalletCards className="h-5 w-5 text-violet-400" />
-                    <p className="mt-3 text-sm font-black text-slate-100">Monthly Finance</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Rent, additional income and expenses · {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSection('data')}
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-emerald-700"
-                  >
-                    {taxesConfigured ? (
-                      <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                    ) : (
-                      <ShieldAlert className="h-5 w-5 text-amber-400" />
-                    )}
-                    <p className="mt-3 text-sm font-black text-slate-100">Tax & Data</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {taxesConfigured ? 'Taxes configured' : 'Tax setup required'} · backup and history
-                    </p>
-                  </button>
-                </div>
-              </div>
+              <div className="space-y-4"><h4 className="font-display text-base font-black uppercase">System Overview</h4><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><span className="text-[10px] font-black uppercase text-slate-500">Locations</span><strong className="mt-1 block font-mono text-2xl">{locations.length}</strong></div><div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><span className="text-[10px] font-black uppercase text-slate-500">Active Properties</span><strong className="mt-1 block font-mono text-2xl">{activeProperties.length}</strong></div><div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><span className="text-[10px] font-black uppercase text-slate-500">Data Model</span><strong className="mt-1 block text-sm text-emerald-300">Simplified</strong></div><div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><span className="text-[10px] font-black uppercase text-slate-500">Financial Model</span><strong className="mt-1 block text-sm text-cyan-300">Income − Expenses</strong></div></div></div>
             )}
 
             {section === 'properties' && (
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-display text-sm font-black uppercase tracking-wide text-slate-100">
-                    Property Management
-                  </h4>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Add locations and properties here. Deactivate properties instead of deleting them so historic reservations remain intact.
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-violet-900/70 bg-violet-950/15 p-3.5">
-                  <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-violet-300">
-                    <MapPin className="h-4 w-4" /> Add Location
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Location Name
-                      </label>
-                      <input
-                        value={newLocationName}
-                        onChange={(event) => setNewLocationName(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            handleAddLocation();
-                          }
-                        }}
-                        placeholder="e.g. Valletta"
-                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none focus:border-violet-500"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddLocation}
-                      className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-4 text-xs font-black uppercase tracking-wider text-white hover:bg-violet-500"
-                    >
-                      <Plus className="h-4 w-4" /> Add Location
-                    </button>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {locations.map((location) => (
-                      <span
-                        key={location.id}
-                        className={`rounded-md border px-2 py-1 text-[9px] font-black uppercase tracking-wider ${location.badgeBgClass}`}
-                      >
-                        {location.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-cyan-900/70 bg-cyan-950/15 p-3.5">
-                  <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-cyan-300">
-                    <Plus className="h-4 w-4" /> Add Property
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_190px_150px_auto] lg:items-end">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Property Name
-                      </label>
-                      <input
-                        value={newPropertyName}
-                        onChange={(event) => setNewPropertyName(event.target.value)}
-                        placeholder="e.g. 3 Meridian"
-                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none focus:border-cyan-500"
-                      />
-                    </div>
-                    <CustomSelect
-                      label="Location"
-                      value={newLocationId}
-                      onChange={(value) => setNewLocationId(String(value))}
-                      options={locationOptions}
-                    />
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Current Rent (€)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={newPropertyRent}
-                        onChange={(event) => setNewPropertyRent(event.target.value)}
-                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none focus:border-cyan-500"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddProperty}
-                      className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-[#ff3e00] px-4 text-xs font-black uppercase tracking-wider text-white hover:bg-[#e03700]"
-                    >
-                      <Plus className="h-4 w-4" /> Add
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5">
-                  {properties.map((property) => (
-                    <PropertyEditorCard
-                      key={property.id}
-                      property={property}
-                      onSaved={handlePropertySaved}
-                    />
-                  ))}
-                </div>
+              <div className="space-y-5">
+                <div><h4 className="font-display text-base font-black uppercase">Locations & Properties</h4><p className="mt-1 text-xs text-slate-400">Add locations and manage the property catalog.</p></div>
+                <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4 lg:grid-cols-2"><div className="space-y-2"><span className="text-[10px] font-black uppercase text-slate-400">New Location</span><div className="flex gap-2"><input value={newLocationName} onChange={(event) => setNewLocationName(event.target.value)} placeholder="Location name" className="h-10 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs" /><button type="button" onClick={addNewLocation} className="flex h-10 items-center gap-1 rounded-lg bg-cyan-600 px-3 text-xs font-black uppercase"><Plus className="h-3.5 w-3.5" /> Add</button></div></div><div className="space-y-2"><span className="text-[10px] font-black uppercase text-slate-400">New Property</span><div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]"><input value={newPropertyName} onChange={(event) => setNewPropertyName(event.target.value)} placeholder="Property name" className="h-10 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs" /><CustomSelect value={newPropertyLocation} options={locationOptions} onChange={setNewPropertyLocation} /><button type="button" onClick={addNewProperty} className="flex h-10 items-center justify-center gap-1 rounded-lg bg-[#ff3e00] px-3 text-xs font-black uppercase"><Plus className="h-3.5 w-3.5" /> Add</button></div></div></div>
+                <div className="space-y-3">{properties.map((property) => <div key={property.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-center"><label className="space-y-1"><span className="text-[9px] font-black uppercase text-slate-500">Property</span><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value, locationId: property.locationId, active: property.active })} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-bold" /></label><CustomSelect label="Location" value={property.locationId} options={locationOptions} onChange={(value) => updateProperty(property.id, { name: property.name, locationId: String(value), active: property.active })} /><label className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 text-[10px] font-black uppercase text-slate-300"><input type="checkbox" checked={property.active} onChange={(event) => updateProperty(property.id, { name: property.name, locationId: property.locationId, active: event.target.checked })} /> Active</label></div>)}</div>
               </div>
             )}
 
             {section === 'finance' && <MonthlyFinanceSettings />}
 
             {section === 'display' && (
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-display text-sm font-black uppercase tracking-wide text-slate-100">
-                    Display Preferences
-                  </h4>
-                  <p className="mt-1 text-xs text-slate-500">Keep the working view compact and readable.</p>
-                </div>
-
-                {[
-                  {
-                    key: 'stickyDailyTotal' as const,
-                    title: 'Sticky Daily Total Column',
-                    description: "Keep 'DAILY TOTAL' pinned on the right of the grid.",
-                  },
-                  {
-                    key: 'showProvisionalBlock' as const,
-                    title: 'Highlight Provisional Bookings',
-                    description: 'Use a striped pattern for unconfirmed reservations.',
-                  },
-                  {
-                    key: 'compactGridRows' as const,
-                    title: 'Compact Density Rows',
-                    description: 'Reduce row height on high-density screens.',
-                  },
-                ].map((item) => (
-                  <label
-                    key={item.key}
-                    className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-slate-700"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold text-slate-200">{item.title}</span>
-                      <span className="mt-1 block text-xs text-slate-500">{item.description}</span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(preferences[item.key])}
-                      onChange={(event) =>
-                        updateUserPreferences({ [item.key]: event.target.checked })
-                      }
-                      className="themed-checkbox"
-                    />
-                  </label>
-                ))}
-              </div>
+              <div className="space-y-4"><h4 className="font-display text-base font-black uppercase">Display</h4>{[
+                ['stickyDailyTotal', 'Sticky daily total column'],
+                ['showProvisionalBlock', 'Show provisional pattern'],
+                ['compactGridRows', 'Compact calendar rows'],
+                ['privacyMode', 'Privacy mode'],
+              ].map(([key, label]) => <label key={key} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 p-4 text-xs font-semibold"><span>{label}</span><input type="checkbox" checked={Boolean(preferences[key as 'stickyDailyTotal' | 'showProvisionalBlock' | 'compactGridRows' | 'privacyMode'])} onChange={(event) => togglePreference(key as 'stickyDailyTotal' | 'showProvisionalBlock' | 'compactGridRows' | 'privacyMode', event.target.checked)} /></label>)}</div>
             )}
 
             {section === 'data' && (
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-display text-sm font-black uppercase tracking-wide text-slate-100">
-                    Tax, Backup & History
-                  </h4>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Advanced actions are kept out of the main header.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openModal('tax_config', { returnToSettings: true, returnSection: 'data' })
-                    }
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-emerald-700"
-                  >
-                    {taxesConfigured ? (
-                      <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                    ) : (
-                      <ShieldAlert className="h-5 w-5 text-amber-400" />
-                    )}
-                    <p className="mt-3 text-sm font-black text-slate-100">Tax Configuration</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {taxesConfigured
-                        ? `${taxConfiguration.accommodationVatRate}% accommodation VAT · ${taxConfiguration.incomeTaxRate}% income tax`
-                        : 'Required before final net balance calculation'}
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openModal('export_import', { returnToSettings: true, returnSection: 'data' })
-                    }
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-cyan-700"
-                  >
-                    <Download className="h-5 w-5 text-cyan-400" />
-                    <p className="mt-3 text-sm font-black text-slate-100">Export & Backup</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      CSV exports, complete JSON backup and restore.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openModal('history', { returnToSettings: true, returnSection: 'data' })
-                    }
-                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-violet-700"
-                  >
-                    <Activity className="h-5 w-5 text-violet-400" />
-                    <p className="mt-3 text-sm font-black text-slate-100">Activity History</p>
-                    <p className="mt-1 text-xs text-slate-500">Review recent booking and finance changes.</p>
-                  </button>
-                </div>
-
-                <div className="rounded-xl border border-rose-900/60 bg-rose-950/20 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-rose-300">
-                        <RotateCcw className="h-4 w-4" /> Reset Demo Data
-                      </div>
-                      <p className="mt-1 text-xs text-rose-200/60">
-                        Restores default locations, properties, bookings, expenses and tax values.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="flex h-10 items-center justify-center gap-2 rounded-lg border border-rose-700 bg-rose-900 px-4 text-xs font-black uppercase tracking-wider text-rose-100 hover:bg-rose-800"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" /> Reset
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <div className="space-y-4"><h4 className="font-display text-base font-black uppercase">Data</h4><button type="button" onClick={() => openModal('export_import', { returnToSettings: true, returnSection: 'data' })} className="flex w-full items-center gap-3 rounded-xl border border-cyan-900 bg-cyan-950/20 p-4 text-left"><Database className="h-5 w-5 text-cyan-300" /><span><strong className="block text-xs uppercase">Import & Export</strong><small className="text-slate-500">CSV reports and JSON backups</small></span></button><button type="button" onClick={() => openModal('history', { returnToSettings: true, returnSection: 'data' })} className="flex w-full items-center gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4 text-left"><Home className="h-5 w-5 text-slate-300" /><span><strong className="block text-xs uppercase">Activity History</strong><small className="text-slate-500">Review saved changes</small></span></button><button type="button" onClick={() => openConfirmation({ title: 'Reset All Data?', message: 'This replaces bookings, finance and the property catalog with demo data.', confirmText: 'Reset Data', variant: 'danger', onConfirm: () => void clearAllData() })} className="w-full rounded-xl border border-rose-900 bg-rose-950/20 p-4 text-left text-xs font-black uppercase text-rose-300">Reset All Data</button></div>
             )}
-          </main>
+          </div>
         </div>
       </div>
     </div>
