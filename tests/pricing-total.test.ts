@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Booking } from '../src/types';
-import { calculateBookingRevenue, getBookingMonthlyAllocatedNights } from '../src/services/financialCalculationService';
+import {
+  calculateBookingRevenue,
+  getBookingMonthlyAllocatedNights,
+} from '../src/services/financialCalculationService';
 import { normalizeBookingRecord } from '../src/services/persistenceRepository';
 
 function simpleBooking(): Booking {
@@ -22,23 +25,27 @@ function simpleBooking(): Booking {
 test('total is derived from nightly rate without a separate total field', () => {
   const booking = simpleBooking();
   assert.equal(calculateBookingRevenue(booking), 9_999);
-  assert.deepEqual(getBookingMonthlyAllocatedNights(booking).map((night) => night.revenueCents), [3_333, 3_333, 3_333]);
+  assert.deepEqual(
+    getBookingMonthlyAllocatedNights(booking).map(
+      (night) => night.revenueCents
+    ),
+    [3_333, 3_333, 3_333]
+  );
   assert.equal('accommodationTotalCents' in booking, false);
 });
 
-test('legacy exact totals are migrated into the nightly rate and removed', () => {
+test('legacy exact totals are migrated into the nightly rate and discarded', () => {
   const migrated = normalizeBookingRecord({
     ...simpleBooking(),
     accommodationTotalCents: 10_001,
-    adults: 2,
-    children: 0,
-    cleaningFeeCents: 4_000,
-    discountCents: 500,
-    commissionPercentage: 15,
+    legacyGuestCount: 2,
+    legacyFeeCents: 4_000,
+    legacyAdjustmentCents: 500,
+    legacyPercentage: 15,
   });
   assert.ok(migrated);
   assert.equal(migrated.nightlyRateCents, 3_334);
   assert.equal('accommodationTotalCents' in migrated, false);
-  assert.equal('adults' in migrated, false);
-  assert.equal('commissionPercentage' in migrated, false);
+  assert.equal('legacyGuestCount' in migrated, false);
+  assert.equal('legacyPercentage' in migrated, false);
 });

@@ -11,7 +11,10 @@ import {
   UserPreferences,
 } from '../types';
 import { ALL_PROPERTIES, LOCATIONS } from '../config/locations';
-import { calculateBookingRevenue, calculatePropertyFinancials } from './financialCalculationService';
+import {
+  calculateBookingRevenue,
+  calculatePropertyFinancials,
+} from './financialCalculationService';
 import {
   DEFAULT_USER_PREFERENCES,
   normalizeBookingRecord,
@@ -27,6 +30,22 @@ const BOOKING_STATUSES = new Set<BookingStatus>([
   'cancelled',
   'checked_in',
   'checked_out',
+]);
+const ACTIVITY_ACTIONS = new Set<ActivityRecord['action']>([
+  'booking_created',
+  'booking_updated',
+  'booking_cancelled',
+  'booking_deleted',
+  'expense_saved',
+  'expense_deleted',
+  'extra_income_saved',
+  'extra_income_deleted',
+  'property_saved',
+  'location_saved',
+  'backup_imported',
+  'ical_imported',
+  'pii_anonymized',
+  'data_cleared',
 ]);
 
 function csvCell(value: string | number | null | undefined): string {
@@ -47,7 +66,9 @@ function downloadTextFile(content: string, filename: string, type: string): void
 }
 
 function euros(cents: number | null | undefined): string {
-  return cents == null || !Number.isFinite(cents) ? '' : (cents / 100).toFixed(2);
+  return cents == null || !Number.isFinite(cents)
+    ? ''
+    : (cents / 100).toFixed(2);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -82,6 +103,17 @@ function validateProperty(value: unknown): value is PropertyConfig {
 
 function hasDuplicateIds(values: Array<{ id: string }>): boolean {
   return new Set(values.map((value) => value.id)).size !== values.length;
+}
+
+function isActivityRecord(value: unknown): value is ActivityRecord {
+  return (
+    isObject(value) &&
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.timestamp) &&
+    ACTIVITY_ACTIONS.has(String(value.action) as ActivityRecord['action']) &&
+    isNonEmptyString(value.entity) &&
+    isNonEmptyString(value.description)
+  );
 }
 
 export class ExportImportService {
@@ -199,10 +231,16 @@ export function exportFinancialSummaryCsv(
     );
     const propertyExpenses = expenses.filter(
       (expense) =>
-        expense.propertyId === property.id && expense.year === year && expense.month === month
+        expense.propertyId === property.id &&
+        expense.year === year &&
+        expense.month === month
     );
-    const rent = propertyExpenses.filter(isRentExpense).reduce((sum, item) => sum + item.amountCents, 0);
-    const other = propertyExpenses.filter((item) => !isRentExpense(item)).reduce((sum, item) => sum + item.amountCents, 0);
+    const rent = propertyExpenses
+      .filter(isRentExpense)
+      .reduce((sum, item) => sum + item.amountCents, 0);
+    const other = propertyExpenses
+      .filter((item) => !isRentExpense(item))
+      .reduce((sum, item) => sum + item.amountCents, 0);
 
     totalBooking += financials.bookingIncomeCents;
     totalExtra += financials.extraIncomeCents;
@@ -295,10 +333,16 @@ export function validateBackupJson(
     const properties = Array.isArray(object.properties)
       ? object.properties.filter(validateProperty)
       : undefined;
-    if (Array.isArray(object.locations) && locations?.length !== object.locations.length) {
+    if (
+      Array.isArray(object.locations) &&
+      locations?.length !== object.locations.length
+    ) {
       return { isValid: false, error: 'Backup contains an invalid locations list.' };
     }
-    if (Array.isArray(object.properties) && properties?.length !== object.properties.length) {
+    if (
+      Array.isArray(object.properties) &&
+      properties?.length !== object.properties.length
+    ) {
       return { isValid: false, error: 'Backup contains an invalid properties list.' };
     }
 
@@ -315,24 +359,45 @@ export function validateBackupJson(
       };
     }
     if (invalidExpenseIndex >= 0) {
-      return { isValid: false, error: `Expense record ${invalidExpenseIndex + 1} is incomplete or invalid.` };
+      return {
+        isValid: false,
+        error: `Expense record ${invalidExpenseIndex + 1} is incomplete or invalid.`,
+      };
     }
     if (invalidIncomeIndex >= 0) {
-      return { isValid: false, error: `Extra income record ${invalidIncomeIndex + 1} is incomplete or invalid.` };
+      return {
+        isValid: false,
+        error: `Extra income record ${invalidIncomeIndex + 1} is incomplete or invalid.`,
+      };
     }
 
     const cleanBookings = bookings as Booking[];
     const cleanExpenses = expenses as Expense[];
     const cleanIncomes = extraIncomes as ExtraIncome[];
-    if (hasDuplicateIds(cleanBookings)) return { isValid: false, error: 'Backup contains duplicate booking IDs.' };
-    if (hasDuplicateIds(cleanExpenses)) return { isValid: false, error: 'Backup contains duplicate expense IDs.' };
-    if (hasDuplicateIds(cleanIncomes)) return { isValid: false, error: 'Backup contains duplicate extra income IDs.' };
-    if (locations && hasDuplicateIds(locations)) return { isValid: false, error: 'Backup contains duplicate location IDs.' };
-    if (properties && hasDuplicateIds(properties)) return { isValid: false, error: 'Backup contains duplicate property IDs.' };
+    if (hasDuplicateIds(cleanBookings)) {
+      return { isValid: false, error: 'Backup contains duplicate booking IDs.' };
+    }
+    if (hasDuplicateIds(cleanExpenses)) {
+      return { isValid: false, error: 'Backup contains duplicate expense IDs.' };
+    }
+    if (hasDuplicateIds(cleanIncomes)) {
+      return {
+        isValid: false,
+        error: 'Backup contains duplicate extra income IDs.',
+      };
+    }
+    if (locations && hasDuplicateIds(locations)) {
+      return { isValid: false, error: 'Backup contains duplicate location IDs.' };
+    }
+    if (properties && hasDuplicateIds(properties)) {
+      return { isValid: false, error: 'Backup contains duplicate property IDs.' };
+    }
 
     if (properties) {
       const locationIds = new Set((locations ?? LOCATIONS).map((location) => location.id));
-      const invalidProperty = properties.find((property) => !locationIds.has(property.locationId));
+      const invalidProperty = properties.find(
+        (property) => !locationIds.has(property.locationId)
+      );
       if (invalidProperty) {
         return {
           isValid: false,
@@ -347,7 +412,8 @@ export function validateBackupJson(
       ) {
         return {
           isValid: false,
-          error: 'Backup contains records linked to a property that is not included in the backup.',
+          error:
+            'Backup contains records linked to a property that is not included in the backup.',
         };
       }
     }
@@ -356,9 +422,7 @@ export function validateBackupJson(
       ? ({ ...DEFAULT_USER_PREFERENCES, ...object.userPreferences } as UserPreferences)
       : { ...DEFAULT_USER_PREFERENCES };
     const activityHistory = Array.isArray(object.activityHistory)
-      ? (object.activityHistory.filter(isObject) as unknown as ActivityRecord[]).filter(
-          (record) => record.action !== ('tax_config_updated' as ActivityRecord['action'])
-        )
+      ? object.activityHistory.filter(isActivityRecord)
       : [];
 
     return {
@@ -366,7 +430,9 @@ export function validateBackupJson(
       data: {
         version: 3,
         exportedAt:
-          typeof object.exportedAt === 'string' ? object.exportedAt : new Date().toISOString(),
+          typeof object.exportedAt === 'string'
+            ? object.exportedAt
+            : new Date().toISOString(),
         containsPii: object.containsPii === true,
         locations: locations?.map((location) => ({ ...location, properties: [] })),
         properties,

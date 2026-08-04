@@ -31,6 +31,22 @@ const STATUSES = new Set<BookingStatus>([
   'checked_in',
   'checked_out',
 ]);
+const ACTIVITY_ACTIONS = new Set<ActivityRecord['action']>([
+  'booking_created',
+  'booking_updated',
+  'booking_cancelled',
+  'booking_deleted',
+  'expense_saved',
+  'expense_deleted',
+  'extra_income_saved',
+  'extra_income_deleted',
+  'property_saved',
+  'location_saved',
+  'backup_imported',
+  'ical_imported',
+  'pii_anonymized',
+  'data_cleared',
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -46,10 +62,7 @@ function stringValue(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
-/**
- * Converts legacy reservations to the reduced schema and deliberately drops
- * guest-count, contact, fee, discount, commission, tax and turnover fields.
- */
+/** Converts legacy reservations to the reduced schema and drops every other field. */
 export function normalizeBookingRecord(value: unknown): Booking | null {
   if (!isRecord(value)) return null;
 
@@ -77,7 +90,9 @@ export function normalizeBookingRecord(value: unknown): Booking | null {
   const now = new Date().toISOString();
 
   return {
-    id: stringValue(value.id).trim() || `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id:
+      stringValue(value.id).trim() ||
+      `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     propertyId,
     guestName,
     channel,
@@ -100,7 +115,15 @@ export function normalizeExpenseRecord(value: unknown): Expense | null {
   const year = Number(value.year);
   const month = Number(value.month);
   const amountCents = nonNegativeInteger(value.amountCents, -1);
-  if (!id || !propertyId || !label || !Number.isInteger(year) || !Number.isInteger(month)) return null;
+  if (
+    !id ||
+    !propertyId ||
+    !label ||
+    !Number.isInteger(year) ||
+    !Number.isInteger(month)
+  ) {
+    return null;
+  }
   if (month < 1 || month > 12 || amountCents < 0) return null;
   const now = new Date().toISOString();
   return {
@@ -126,7 +149,15 @@ export function normalizeExtraIncomeRecord(value: unknown): ExtraIncome | null {
   const year = Number(value.year);
   const month = Number(value.month);
   const amountCents = nonNegativeInteger(value.amountCents, -1);
-  if (!id || !propertyId || !label || !Number.isInteger(year) || !Number.isInteger(month)) return null;
+  if (
+    !id ||
+    !propertyId ||
+    !label ||
+    !Number.isInteger(year) ||
+    !Number.isInteger(month)
+  ) {
+    return null;
+  }
   if (month < 1 || month > 12 || amountCents < 0) return null;
   const now = new Date().toISOString();
   return {
@@ -146,12 +177,18 @@ function normalizeActivityRecord(value: unknown): ActivityRecord | null {
   if (!isRecord(value)) return null;
   const id = stringValue(value.id).trim();
   const timestamp = stringValue(value.timestamp);
-  const rawAction = stringValue(value.action);
-  if (rawAction === 'tax_config_updated') return null;
-  const action = rawAction as ActivityRecord['action'];
+  const action = stringValue(value.action) as ActivityRecord['action'];
   const entity = stringValue(value.entity).trim();
   const description = stringValue(value.description).trim();
-  if (!id || !timestamp || !action || !entity || !description) return null;
+  if (
+    !id ||
+    !timestamp ||
+    !ACTIVITY_ACTIONS.has(action) ||
+    !entity ||
+    !description
+  ) {
+    return null;
+  }
   return { id, timestamp, action, entity, description };
 }
 
@@ -162,10 +199,14 @@ export function normalizePersistedState(
 ): PersistedState {
   const record = isRecord(value) ? value : {};
   const bookings = Array.isArray(record.bookings)
-    ? record.bookings.map(normalizeBookingRecord).filter((item): item is Booking => Boolean(item))
+    ? record.bookings
+        .map(normalizeBookingRecord)
+        .filter((item): item is Booking => Boolean(item))
     : [];
   const expenses = Array.isArray(record.expenses)
-    ? record.expenses.map(normalizeExpenseRecord).filter((item): item is Expense => Boolean(item))
+    ? record.expenses
+        .map(normalizeExpenseRecord)
+        .filter((item): item is Expense => Boolean(item))
     : [];
   const extraIncomes = Array.isArray(record.extraIncomes)
     ? record.extraIncomes
@@ -181,10 +222,14 @@ export function normalizePersistedState(
   return {
     version: CURRENT_SCHEMA_VERSION,
     selectedMonth:
-      Number.isInteger(record.selectedMonth) && Number(record.selectedMonth) >= 1 && Number(record.selectedMonth) <= 12
+      Number.isInteger(record.selectedMonth) &&
+      Number(record.selectedMonth) >= 1 &&
+      Number(record.selectedMonth) <= 12
         ? Number(record.selectedMonth)
         : fallbackMonth,
-    selectedYear: Number.isInteger(record.selectedYear) ? Number(record.selectedYear) : fallbackYear,
+    selectedYear: Number.isInteger(record.selectedYear)
+      ? Number(record.selectedYear)
+      : fallbackYear,
     bookings,
     expenses,
     extraIncomes,
@@ -230,25 +275,33 @@ export function createDefaultExpenses(year: number, month: number): Expense[] {
 export function createSeedBookings(year: number, month: number): Booking[] {
   const now = new Date().toISOString();
   const monthText = String(month).padStart(2, '0');
-  const names = ['Alex Morgan', 'Sophia Martin', 'Luca Rossi', 'Emma Brown', 'David Miller'];
+  const names = [
+    'Alex Morgan',
+    'Sophia Martin',
+    'Luca Rossi',
+    'Emma Brown',
+    'David Miller',
+  ];
   const channels: Channel[] = ['airbnb', 'booking_com', 'direct', 'vrbo'];
 
-  return ALL_PROPERTIES.slice(0, Math.min(ALL_PROPERTIES.length, 10)).map((property, index) => {
-    const checkInDay = 1 + (index * 2) % 20;
-    const checkOutDay = checkInDay + 3;
-    return {
-      id: `b-seed-${index + 1}`,
-      propertyId: property.id,
-      guestName: names[index % names.length],
-      channel: channels[index % channels.length],
-      checkInDate: `${year}-${monthText}-${String(checkInDay).padStart(2, '0')}`,
-      checkOutDate: `${year}-${monthText}-${String(checkOutDay).padStart(2, '0')}`,
-      nightlyRateCents: 11000 + index * 1000,
-      status: index === 4 ? 'provisional' : 'confirmed',
-      createdAt: now,
-      updatedAt: now,
-    };
-  });
+  return ALL_PROPERTIES.slice(0, Math.min(ALL_PROPERTIES.length, 10)).map(
+    (property, index) => {
+      const checkInDay = 1 + ((index * 2) % 20);
+      const checkOutDay = checkInDay + 3;
+      return {
+        id: `b-seed-${index + 1}`,
+        propertyId: property.id,
+        guestName: names[index % names.length],
+        channel: channels[index % channels.length],
+        checkInDate: `${year}-${monthText}-${String(checkInDay).padStart(2, '0')}`,
+        checkOutDate: `${year}-${monthText}-${String(checkOutDay).padStart(2, '0')}`,
+        nightlyRateCents: 11000 + index * 1000,
+        status: index === 4 ? 'provisional' : 'confirmed',
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+  );
 }
 
 export function createSeedExtraIncome(year: number, month: number): ExtraIncome[] {
@@ -296,7 +349,9 @@ export class PersistenceRepository {
     const year = today.getFullYear();
     const month = today.getMonth() + 1;
 
-    if (typeof localStorage === 'undefined') return createInitialState(year, month);
+    if (typeof localStorage === 'undefined') {
+      return createInitialState(year, month);
+    }
 
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -319,6 +374,9 @@ export class PersistenceRepository {
 
   public static save(state: PersistedState): void {
     if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizePersistedState(state)));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(normalizePersistedState(state))
+    );
   }
 }
