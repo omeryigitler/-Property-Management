@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useDashboardStore } from '../../store/useDashboardStore';
-import { ALL_PROPERTIES } from '../../config/locations';
+import { getActiveProperties, usePropertyStore } from '../../store/usePropertyStore';
 import { getDaysForMonth } from '../../utils/dateUtilities';
 import { calculateDailyTotalRevenue, getCellBookingState } from '../../utils/bookingCalculations';
 
@@ -11,85 +11,86 @@ import { BookingCell } from './BookingCell';
 import { DailyTotalColumn } from './DailyTotalColumn';
 
 interface PropertyCalendarGridProps {
-  children?: React.ReactNode; // FinancialGrid rendered at bottom of grid scroll container
+  children?: React.ReactNode;
 }
 
 export function PropertyCalendarGrid({ children }: PropertyCalendarGridProps) {
-  const selectedMonth = useDashboardStore((s) => s.selectedMonth);
-  const selectedYear = useDashboardStore((s) => s.selectedYear);
-  const bookings = useDashboardStore((s) => s.bookings);
-  const hoveredCell = useDashboardStore((s) => s.hoveredCell);
-  const openModal = useDashboardStore((s) => s.openModal);
+  const selectedMonth = useDashboardStore((state) => state.selectedMonth);
+  const selectedYear = useDashboardStore((state) => state.selectedYear);
+  const bookings = useDashboardStore((state) => state.bookings);
+  const hoveredCell = useDashboardStore((state) => state.hoveredCell);
+  const openModal = useDashboardStore((state) => state.openModal);
+  const properties = usePropertyStore((state) => state.properties);
+  const activeProperties = getActiveProperties(properties);
 
   const daysGrid = getDaysForMonth(selectedYear, selectedMonth);
-
-  // Keyboard navigation state
   const [focusedIndex, setFocusedIndex] = useState<{ dayIdx: number; propIdx: number } | null>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Handle keyboard arrow navigation
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
+    function handleKeyDown(event: KeyboardEvent) {
       if (!focusedIndex) return;
-
-      const activeModal = useDashboardStore.getState().activeModal;
-      if (activeModal !== null) return; // Modal open, don't hijack keys
+      if (useDashboardStore.getState().activeModal !== null) return;
 
       const { dayIdx, propIdx } = focusedIndex;
       const totalDays = daysGrid.length;
-      const totalProps = ALL_PROPERTIES.length;
+      const totalProperties = activeProperties.length;
 
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
         setFocusedIndex({ dayIdx: Math.min(totalDays - 1, dayIdx + 1), propIdx });
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
         setFocusedIndex({ dayIdx: Math.max(0, dayIdx - 1), propIdx });
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        setFocusedIndex({ dayIdx, propIdx: Math.min(totalProps - 1, propIdx + 1) });
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        setFocusedIndex({ dayIdx, propIdx: Math.min(totalProperties - 1, propIdx + 1) });
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
         setFocusedIndex({ dayIdx, propIdx: Math.max(0, propIdx - 1) });
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
         const targetDay = daysGrid[dayIdx];
-        const targetProp = ALL_PROPERTIES[propIdx];
-        if (targetDay && targetProp) {
-          const cellState = getCellBookingState(targetProp.id, targetDay.dateStr, bookings);
-          if (cellState.isOccupied && cellState.booking) {
-            openModal('booking_edit', { bookingId: cellState.booking.id });
-          } else {
-            openModal('booking_add', { prefilledPropertyId: targetProp.id, prefilledDate: targetDay.dateStr });
-          }
+        const targetProperty = activeProperties[propIdx];
+        if (!targetDay || !targetProperty) return;
+
+        const cellState = getCellBookingState(targetProperty.id, targetDay.dateStr, bookings);
+        if (cellState.isOccupied && cellState.booking) {
+          openModal('booking_edit', { bookingId: cellState.booking.id });
+        } else {
+          openModal('booking_add', {
+            prefilledPropertyId: targetProperty.id,
+            prefilledDate: targetDay.dateStr,
+          });
         }
-      } else if (e.key === 'Escape') {
+      } else if (event.key === 'Escape') {
         setFocusedIndex(null);
       }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedIndex, daysGrid, bookings, openModal]);
+  }, [focusedIndex, daysGrid, bookings, openModal, activeProperties]);
 
   return (
     <div className="w-full flex-1 flex flex-col min-h-0 bg-slate-950">
-      {/* Main Coordinated Scroll Area */}
       <div
         ref={containerRef}
         className="w-full flex-1 overflow-auto custom-scrollbar relative touch-pan-x touch-pan-y"
         tabIndex={0}
       >
         <div className="inline-block min-w-full align-top pb-6">
-          {/* Sticky Header Rows */}
           <LocationHeaderRow />
           <PropertyHeaderRow />
 
-          {/* Calendar Rows */}
-          {daysGrid.map((dayItem, dayIdx) => {
-            const isHoveredRow = hoveredCell?.dateStr === dayItem.dateStr || focusedIndex?.dayIdx === dayIdx;
-            const dailyTotalCents = calculateDailyTotalRevenue(dayItem.dateStr, bookings);
+          {daysGrid.map((dayItem, dayIndex) => {
+            const isHoveredRow =
+              hoveredCell?.dateStr === dayItem.dateStr || focusedIndex?.dayIdx === dayIndex;
+            const activePropertyIds = new Set(activeProperties.map((property) => property.id));
+            const dailyTotalCents = calculateDailyTotalRevenue(
+              dayItem.dateStr,
+              bookings.filter((booking) => activePropertyIds.has(booking.propertyId))
+            );
 
             return (
               <div
@@ -98,7 +99,6 @@ export function PropertyCalendarGrid({ children }: PropertyCalendarGridProps) {
                   dayItem.isWeekend ? 'bg-slate-900/20' : ''
                 }`}
               >
-                {/* Left Day Column */}
                 <DayColumn
                   dayNumber={dayItem.dayNumber}
                   dateStr={dayItem.dateStr}
@@ -108,21 +108,23 @@ export function PropertyCalendarGrid({ children }: PropertyCalendarGridProps) {
                   isHoveredRow={isHoveredRow}
                 />
 
-                {/* Property Columns */}
-                {ALL_PROPERTIES.map((prop, propIdx) => {
-                  const cellState = getCellBookingState(prop.id, dayItem.dateStr, bookings);
-                  const isHoveredCol = hoveredCell?.propertyId === prop.id || focusedIndex?.propIdx === propIdx;
+                {activeProperties.map((property, propertyIndex) => {
+                  const cellState = getCellBookingState(property.id, dayItem.dateStr, bookings);
+                  const isHoveredCol =
+                    hoveredCell?.propertyId === property.id || focusedIndex?.propIdx === propertyIndex;
                   const isHoveredCell =
-                    (hoveredCell?.propertyId === prop.id && hoveredCell?.dateStr === dayItem.dateStr) ||
-                    (focusedIndex?.dayIdx === dayIdx && focusedIndex?.propIdx === propIdx);
+                    (hoveredCell?.propertyId === property.id &&
+                      hoveredCell?.dateStr === dayItem.dateStr) ||
+                    (focusedIndex?.dayIdx === dayIndex &&
+                      focusedIndex?.propIdx === propertyIndex);
 
                   return (
                     <div
-                      key={`${prop.id}-${dayItem.dateStr}`}
-                      onClick={() => setFocusedIndex({ dayIdx, propIdx })}
+                      key={`${property.id}-${dayItem.dateStr}`}
+                      onClick={() => setFocusedIndex({ dayIdx: dayIndex, propIdx: propertyIndex })}
                     >
                       <BookingCell
-                        propertyId={prop.id}
+                        propertyId={property.id}
                         dateStr={dayItem.dateStr}
                         cellState={cellState}
                         isHoveredRow={isHoveredRow}
@@ -133,13 +135,14 @@ export function PropertyCalendarGrid({ children }: PropertyCalendarGridProps) {
                   );
                 })}
 
-                {/* Far-Right Daily Total Column */}
-                <DailyTotalColumn dailyTotalCents={dailyTotalCents} isHoveredRow={isHoveredRow} />
+                <DailyTotalColumn
+                  dailyTotalCents={dailyTotalCents}
+                  isHoveredRow={isHoveredRow}
+                />
               </div>
             );
           })}
 
-          {/* Financial Ledger Section Aligned With Grid Columns */}
           {children}
         </div>
       </div>
