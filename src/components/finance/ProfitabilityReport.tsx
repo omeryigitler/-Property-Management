@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, BarChart3, Minus, Scale } from 'lucide-react';
-import { ALL_PROPERTIES } from '../../config/locations';
 import { useDashboardStore } from '../../store/useDashboardStore';
+import { getActiveProperties, usePropertyStore } from '../../store/usePropertyStore';
 import { PropertyFinancials } from '../../types';
-import { calculateAggregatedFinancials, calculatePropertyFinancials } from '../../utils/financeCalculations';
+import { calculatePropertyFinancials } from '../../utils/financeCalculations';
+import { calculatePortfolioFinancials } from '../../services/portfolioFinancialService';
 import { formatCents } from '../../utils/currency';
 
 function getProfitCents(financials: PropertyFinancials): number {
@@ -67,16 +68,13 @@ function ProfitCell({
   const statusClass = isProfit
     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/70'
     : isLoss
-    ? 'bg-rose-950/80 text-rose-300 border-rose-700/70'
-    : 'bg-slate-800 text-slate-300 border-slate-700';
-
+      ? 'bg-rose-950/80 text-rose-300 border-rose-700/70'
+      : 'bg-slate-800 text-slate-300 border-slate-700';
   const valueClass = isProfit ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-slate-300';
   const StatusIcon = isProfit ? ArrowUpRight : isLoss ? ArrowDownRight : Minus;
 
   return (
-    <div
-      className={`${total ? 'dashboard-total-column bg-yellow-950/65 border-yellow-800/80' : 'dashboard-property-column bg-slate-950/60 border-slate-800'} ledger-report-row border-r border-b p-2 flex flex-col justify-center overflow-hidden`}
-    >
+    <div className={`${total ? 'dashboard-total-column bg-yellow-950/65 border-yellow-800/80' : 'dashboard-property-column bg-slate-950/60 border-slate-800'} ledger-report-row border-r border-b p-2 flex flex-col justify-center overflow-hidden`}>
       <div className="flex items-center justify-between gap-1">
         <span className={`truncate text-[9px] font-black uppercase tracking-wider ${total ? 'text-yellow-200' : 'text-slate-500'}`}>
           {title}
@@ -116,8 +114,11 @@ export function ProfitabilityReport() {
   const expenses = useDashboardStore((state) => state.expenses);
   const extraIncomes = useDashboardStore((state) => state.extraIncomes);
   const taxConfig = useDashboardStore((state) => state.taxConfiguration);
+  const properties = usePropertyStore((state) => state.properties);
+  const activeProperties = getActiveProperties(properties);
+  const propertyIds = activeProperties.map((property) => property.id);
 
-  const currentFinancials = ALL_PROPERTIES.map((property) =>
+  const currentFinancials = activeProperties.map((property) =>
     calculatePropertyFinancials(
       property.id,
       selectedYear,
@@ -129,7 +130,7 @@ export function ProfitabilityReport() {
     )
   );
 
-  const previousFinancials = ALL_PROPERTIES.map((property) =>
+  const previousFinancials = activeProperties.map((property) =>
     calculatePropertyFinancials(
       property.id,
       selectedYear - 1,
@@ -141,7 +142,8 @@ export function ProfitabilityReport() {
     )
   );
 
-  const currentAggregate = calculateAggregatedFinancials(
+  const currentAggregate = calculatePortfolioFinancials(
+    propertyIds,
     selectedYear,
     selectedMonth,
     bookings,
@@ -149,7 +151,8 @@ export function ProfitabilityReport() {
     extraIncomes,
     taxConfig
   );
-  const previousAggregate = calculateAggregatedFinancials(
+  const previousAggregate = calculatePortfolioFinancials(
+    propertyIds,
     selectedYear - 1,
     selectedMonth,
     bookings,
@@ -169,7 +172,7 @@ export function ProfitabilityReport() {
       previousAggregate.combinedExtraIncomeCents -
       previousAggregate.combinedExpenseCents;
 
-  const hasAnyPreviousData = ALL_PROPERTIES.some((property) =>
+  const hasAnyPreviousData = activeProperties.some((property) =>
     hasPeriodData(property.id, selectedYear - 1, selectedMonth, bookings, expenses, extraIncomes)
   );
 
@@ -207,7 +210,7 @@ export function ProfitabilityReport() {
           <span className="mt-1 text-[9px] font-semibold text-slate-500">{selectedMonth}/{selectedYear}</span>
         </div>
 
-        {ALL_PROPERTIES.map((property, index) => (
+        {activeProperties.map((property, index) => (
           <ProfitCell
             key={property.id}
             title={property.name}
