@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CHANNEL_CONFIG } from '../../config/locations';
 import { CellBookingState, getBookingOccupiedNights } from '../../utils/bookingCalculations';
@@ -29,6 +29,7 @@ export function BookingCell({
   isHoveredCell,
 }: BookingCellProps) {
   const openModal = useDashboardStore((s) => s.openModal);
+  const activeModal = useDashboardStore((s) => s.activeModal);
   const setHoveredCell = useDashboardStore((s) => s.setHoveredCell);
   const showProvisionalBlock = useDashboardStore((s) => s.userPreferences.showProvisionalBlock);
 
@@ -44,7 +45,21 @@ export function BookingCell({
     bgClass = 'bg-slate-800/40';
   }
 
+  const hideBookingTooltip = () => {
+    setShowTooltip(false);
+    setTooltipPosition(null);
+  };
+
+  const canShowHoverTooltip = () =>
+    typeof window !== 'undefined' &&
+    window.innerWidth >= 768 &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+    activeModal === null;
+
   const handleClick = () => {
+    hideBookingTooltip();
+    setHoveredCell(null);
+
     if (isOccupied && booking) {
       openModal('booking_edit', { bookingId: booking.id });
     } else {
@@ -53,6 +68,11 @@ export function BookingCell({
   };
 
   const showBookingTooltip = (element: HTMLElement) => {
+    if (!canShowHoverTooltip()) {
+      hideBookingTooltip();
+      return;
+    }
+
     const bookingCard = element.querySelector<HTMLElement>('.booking-span-card');
     const rect = bookingCard?.getBoundingClientRect() ?? element.getBoundingClientRect();
     const tooltipWidth = 240;
@@ -67,10 +87,12 @@ export function BookingCell({
     setShowTooltip(true);
   };
 
-  const hideBookingTooltip = () => {
-    setShowTooltip(false);
-    setTooltipPosition(null);
-  };
+  useEffect(() => {
+    if (activeModal !== null) {
+      hideBookingTooltip();
+      setHoveredCell(null);
+    }
+  }, [activeModal, setHoveredCell]);
 
   if (!isOccupied || !booking) {
     return (
