@@ -1,6 +1,8 @@
 import React from 'react';
 import {
+  BarChart3,
   Building2,
+  CalendarDays,
   Plus,
   Settings,
   Download,
@@ -16,10 +18,13 @@ import { MonthYearNavigator } from './MonthYearNavigator';
 export function DashboardHeader() {
   const selectedMonth = useDashboardStore((s) => s.selectedMonth);
   const selectedYear = useDashboardStore((s) => s.selectedYear);
+  const mainViewMode = useDashboardStore((s) => s.mainViewMode);
+  const setMainViewMode = useDashboardStore((s) => s.setMainViewMode);
   const taxConfiguration = useDashboardStore((s) => s.taxConfiguration);
   const openModal = useDashboardStore((s) => s.openModal);
 
   const taxIsConfigured = isTaxConfigured(taxConfiguration);
+  const isReportsView = mainViewMode === 'analytics';
 
   return (
     <header className="w-full bg-slate-950 border-b border-slate-800 p-4 sm:p-5 flex flex-col gap-4 shadow-xl">
@@ -40,13 +45,43 @@ export function DashboardHeader() {
               </span>
             </div>
             <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-              High-Density Calendar & Financial Ledger • <span className="text-slate-200">{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</span>
+              {isReportsView ? 'Portfolio Reports & Analytics' : 'High-Density Calendar & Financial Ledger'} •{' '}
+              <span className="text-slate-200">{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</span>
             </p>
           </div>
         </div>
 
         {/* Top Control Buttons */}
         <div className="flex flex-wrap items-center gap-2 self-stretch md:self-auto justify-end">
+          <div className="grid grid-cols-2 rounded-lg border border-slate-700/80 bg-slate-900 p-1">
+            <button
+              type="button"
+              onClick={() => setMainViewMode('calendar')}
+              className={`flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                !isReportsView
+                  ? 'bg-[#ff3e00] text-white shadow-md shadow-[#ff3e00]/20'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+              }`}
+              title="Calendar & Financial Ledger"
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Calendar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainViewMode('analytics')}
+              className={`flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                isReportsView
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950/40'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+              }`}
+              title="Reports & Analytics"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Reports</span>
+            </button>
+          </div>
+
           {/* New Booking Button */}
           <button
             type="button"
