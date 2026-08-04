@@ -43,6 +43,8 @@ export function isTaxConfigured(config: TaxConfiguration | null | undefined): bo
 
 export interface CalculateTaxInput {
   bookingIncomeCents: number;
+  grossBookingIncomeCents?: number;
+  netBookingIncomeCents?: number;
   extraIncomeCents: number;
   extraIncomeByTreatment: Record<TaxTreatment, number>;
   totalExpensesCents: number;
@@ -68,6 +70,8 @@ export interface TaxCalculationResult {
 export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculationResult {
   const {
     bookingIncomeCents,
+    grossBookingIncomeCents = bookingIncomeCents,
+    netBookingIncomeCents = bookingIncomeCents,
     extraIncomeCents,
     extraIncomeByTreatment,
     totalExpensesCents,
@@ -82,8 +86,6 @@ export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculation
   const stdRate = (config.standardVatRate || 0) / 100;
   const incRate = (config.incomeTaxRate || 0) / 100;
 
-  // 1. Accommodation VAT
-  // Extra income marked as accommodation_vat is included in accommodation VAT base
   const totalAccBase = bookingIncomeCents + (extraIncomeByTreatment.accommodation_vat || 0);
 
   let accommodationVatCents = 0;
@@ -93,7 +95,6 @@ export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculation
     accommodationVatCents = Math.round(totalAccBase * accRate);
   }
 
-  // 2. Standard VAT (from extra incomes marked standard_vat)
   const stdExtraBase = extraIncomeByTreatment.standard_vat || 0;
   let standardVatCents = 0;
   if (config.vatInclusivity === 'inclusive') {
@@ -102,7 +103,6 @@ export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculation
     standardVatCents = Math.round(stdExtraBase * stdRate);
   }
 
-  // 3. Eco Contribution
   const ecoPerUnitCents = config.ecoContributionCents || 0;
   let ecoContributionCents = 0;
   if (config.ecoTaxBasis === 'per_occupied_night') {
@@ -113,24 +113,32 @@ export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculation
     ecoContributionCents = totalGuestNightsCount * ecoPerUnitCents;
   }
 
-  // 4. Income Tax
+  const grossTotalCents = grossBookingIncomeCents + extraIncomeCents;
+  const netAfterCommissionCents = netBookingIncomeCents + extraIncomeCents;
   let taxableBaseCents = 0;
-  const grossTotal = bookingIncomeCents + extraIncomeCents;
 
   if (config.incomeTaxBasis === 'gross_revenue') {
-    taxableBaseCents = grossTotal;
+    taxableBaseCents = grossTotalCents;
   } else if (config.incomeTaxBasis === 'net_after_vat') {
-    taxableBaseCents = grossTotal - accommodationVatCents - standardVatCents;
+    taxableBaseCents = grossTotalCents - accommodationVatCents - standardVatCents;
+  } else if (config.incomeTaxBasis === 'net_after_commission') {
+    taxableBaseCents = netAfterCommissionCents;
   } else {
-    // taxable_profit
-    taxableBaseCents = grossTotal - deductibleExpensesCents - accommodationVatCents - standardVatCents - ecoContributionCents;
+    taxableBaseCents =
+      netAfterCommissionCents -
+      deductibleExpensesCents -
+      accommodationVatCents -
+      standardVatCents -
+      ecoContributionCents;
   }
 
-  if (taxableBaseCents < 0) taxableBaseCents = 0;
+  taxableBaseCents = Math.max(0, taxableBaseCents);
   const incomeTaxCents = Math.round(taxableBaseCents * incRate);
 
-  const calculatedTaxesCents = accommodationVatCents + standardVatCents + ecoContributionCents + incomeTaxCents;
-  const netBalanceCents = grossTotal - totalExpensesCents - calculatedTaxesCents;
+  const calculatedTaxesCents =
+    accommodationVatCents + standardVatCents + ecoContributionCents + incomeTaxCents;
+  const netBalanceCents =
+    netAfterCommissionCents - totalExpensesCents - calculatedTaxesCents;
 
   return {
     accommodationVatCents,
