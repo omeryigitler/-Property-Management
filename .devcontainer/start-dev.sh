@@ -2,13 +2,13 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOG_FILE="/tmp/property-management-vite.log"
-PID_FILE="/tmp/property-management-vite.pid"
+LOG_FILE="/tmp/property-management-workspace.log"
+PID_FILE="/tmp/property-management-workspace.pid"
 PORT="3000"
 
 cd "$ROOT_DIR"
 
-echo "[Property Management] Preparing development server on port ${PORT}..."
+echo "[Property Management] Building workspace preview..."
 
 if command -v lsof >/dev/null 2>&1; then
   LISTENERS="$(lsof -tiTCP:${PORT} -sTCP:LISTEN 2>/dev/null || true)"
@@ -34,36 +34,19 @@ fi
 
 rm -f "$LOG_FILE"
 
-nohup npm run dev >"$LOG_FILE" 2>&1 </dev/null &
-DEV_PID=$!
-echo "$DEV_PID" > "$PID_FILE"
+npm run build
 
-CHECK_PATHS=(
-  "/"
-  "/@vite/client"
-  "/src/main.tsx"
-  "/src/App.tsx"
-  "/src/components/AppShell.tsx"
-  "/src/components/calendar/MobileCalendarView.tsx"
-  "/src/components/analytics/ReportsDashboard.tsx"
-)
+nohup npm run serve:workspace >"$LOG_FILE" 2>&1 </dev/null &
+SERVER_PID=$!
+echo "$SERVER_PID" > "$PID_FILE"
 
-for _ in $(seq 1 45); do
-  READY=true
-
-  if ! kill -0 "$DEV_PID" 2>/dev/null; then
-    READY=false
+for _ in $(seq 1 30); do
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
     break
   fi
 
-  for CHECK_PATH in "${CHECK_PATHS[@]}"; do
-    if ! curl --max-time 3 -fsS "http://127.0.0.1:${PORT}${CHECK_PATH}" >/dev/null 2>&1; then
-      READY=false
-      break
-    fi
-  done
-
-  if [[ "$READY" == true ]]; then
+  if curl --max-time 3 -fsS "http://127.0.0.1:${PORT}/__health" >/dev/null 2>&1 && \
+     curl --max-time 3 -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
     BROWSE_URL=""
 
     if command -v gh >/dev/null 2>&1 && [[ -n "${CODESPACE_NAME:-}" ]]; then
@@ -78,25 +61,21 @@ for _ in $(seq 1 45); do
       BROWSE_URL="https://${CODESPACE_NAME}-${PORT}.app.github.dev"
     fi
 
-    echo "[Property Management] Ready: http://localhost:${PORT}"
-
+    echo "[Property Management] Workspace ready: http://localhost:${PORT}"
     if [[ -n "$BROWSE_URL" ]]; then
-      echo "[Property Management] Opening: ${BROWSE_URL}"
+      echo "[Property Management] Open this URL: ${BROWSE_URL}"
       if command -v code >/dev/null 2>&1; then
         code --open-url "$BROWSE_URL" >/dev/null 2>&1 || true
       fi
-    else
-      echo "[Property Management] Open port ${PORT} from the Ports panel."
     fi
-
     exit 0
   fi
 
   sleep 1
 done
 
-echo "[Property Management] Development server failed to become ready."
-echo "---------------- Vite log ----------------"
+echo "[Property Management] Workspace preview failed."
+echo "---------------- Server log ----------------"
 cat "$LOG_FILE" 2>/dev/null || true
-echo "------------------------------------------"
+echo "--------------------------------------------"
 exit 1
