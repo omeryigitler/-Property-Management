@@ -9,7 +9,7 @@ import {
   DEFAULT_TAX_CONFIG,
   DEFAULT_USER_PREFERENCES,
 } from '../src/services/persistenceRepository';
-import { DEFAULT_PROPERTIES } from '../src/config/locations';
+import { DEFAULT_PROPERTIES, LOCATIONS } from '../src/config/locations';
 
 function booking(): Booking {
   return {
@@ -20,6 +20,7 @@ function booking(): Booking {
     checkInDate: '2026-08-01',
     checkOutDate: '2026-08-03',
     nightlyRateCents: 10_000,
+    accommodationTotalCents: 19_999,
     adults: 2,
     children: 0,
     status: 'confirmed',
@@ -50,6 +51,7 @@ function booking(): Booking {
 function generate(includePii: boolean) {
   return ExportImportService.generateBackup(
     DEFAULT_TAX_CONFIG,
+    LOCATIONS,
     DEFAULT_PROPERTIES,
     [booking()],
     [],
@@ -64,6 +66,7 @@ test('privacy-safe backup removes guest PII without mutating source records', ()
   const source = booking();
   const backup = ExportImportService.generateBackup(
     DEFAULT_TAX_CONFIG,
+    LOCATIONS,
     DEFAULT_PROPERTIES,
     [source],
     [],
@@ -78,21 +81,23 @@ test('privacy-safe backup removes guest PII without mutating source records', ()
   assert.equal(backup.bookings[0].contactEmail, undefined);
   assert.equal(backup.bookings[0].contactPhone, undefined);
   assert.equal(backup.bookings[0].notes, undefined);
+  assert.equal(backup.bookings[0].accommodationTotalCents, 19_999);
   assert.equal(source.guestName, 'Private Guest');
   assert.equal(source.contactEmail, 'private@example.com');
 });
 
-test('full backup preserves guest details required for complete restore', () => {
+test('full backup preserves guest details and the location catalog', () => {
   const backup = generate(true);
 
   assert.equal(backup.containsPii, true);
+  assert.equal(backup.locations?.length, LOCATIONS.length);
   assert.equal(backup.bookings[0].guestName, 'Private Guest');
   assert.equal(backup.bookings[0].contactEmail, 'private@example.com');
   assert.equal(backup.bookings[0].contactPhone, '+35600000000');
   assert.equal(backup.bookings[0].notes, 'Private operational note');
 });
 
-test('backup validation rejects properties with unsupported locations', () => {
+test('backup validation rejects properties linked to missing locations', () => {
   const backup = generate(true);
   backup.properties = [
     {
@@ -107,7 +112,7 @@ test('backup validation rejects properties with unsupported locations', () => {
   const validation = validateBackupJson(backup);
 
   assert.equal(validation.isValid, false);
-  assert.match(validation.error ?? '', /property record/i);
+  assert.match(validation.error ?? '', /location/i);
 });
 
 test('backup validation rejects unsupported tax rule values', () => {
