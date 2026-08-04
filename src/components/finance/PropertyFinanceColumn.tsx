@@ -6,10 +6,18 @@ import { formatCents } from '../../utils/currency';
 import { isRentExpense, sumExpenses } from '../../utils/expenseUtilities';
 
 interface PropertyFinanceColumnProps {
+  key?: React.Key;
   propertyId: string;
 }
 
-function DetailLine({ label, amountCents, income = false }: { label: string; amountCents: number; income?: boolean }) {
+interface DetailLineProps {
+  key?: React.Key;
+  label: string;
+  amountCents: number;
+  income?: boolean;
+}
+
+function DetailLine({ label, amountCents, income = false }: DetailLineProps) {
   return (
     <div className="flex min-w-0 items-center justify-between gap-2 py-0.5 text-[10px]">
       <span className="truncate font-semibold text-slate-300">{label}</span>

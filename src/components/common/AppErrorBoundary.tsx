@@ -22,7 +22,9 @@ export class AppErrorBoundary extends React.Component<
   }
 
   public render() {
-    if (!this.state.error) return this.props.children;
+    if (!this.state.error) {
+      return (this as AppErrorBoundary & { props: React.PropsWithChildren }).props.children;
+    }
 
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 p-5 text-slate-100">

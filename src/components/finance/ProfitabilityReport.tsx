@@ -6,7 +6,16 @@ import { calculatePropertyFinancials } from '../../utils/financeCalculations';
 import { calculatePortfolioFinancials } from '../../services/portfolioFinancialService';
 import { formatCents } from '../../utils/currency';
 
-function ProfitCell({ title, current, previous, compare, total = false }: { title: string; current: number; previous: number; compare: boolean; total?: boolean }) {
+interface ProfitCellProps {
+  key?: React.Key;
+  title: string;
+  current: number;
+  previous: number;
+  compare: boolean;
+  total?: boolean;
+}
+
+function ProfitCell({ title, current, previous, compare, total = false }: ProfitCellProps) {
   const difference = current - previous;
   const Icon = current > 0 ? ArrowUpRight : current < 0 ? ArrowDownRight : Minus;
   return (
