@@ -4,49 +4,41 @@ import { useDashboardStore } from '../../store/useDashboardStore';
 import { getMissingTaxFields } from '../../utils/taxCalculations';
 
 export function TaxConfigurationGate() {
-  const taxConfig = useDashboardStore((s) => s.taxConfiguration);
-  const openModal = useDashboardStore((s) => s.openModal);
-
+  const taxConfig = useDashboardStore((state) => state.taxConfiguration);
+  const openModal = useDashboardStore((state) => state.openModal);
   const missingFields = getMissingTaxFields(taxConfig);
 
   if (missingFields.length === 0) return null;
 
   return (
-    <div className="w-full bg-amber-950/70 border border-amber-600/70 rounded-xl p-4 shadow-xl backdrop-blur-md animate-fade-in flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-      <div className="flex items-start gap-3.5">
-        <div className="p-2.5 rounded-lg bg-amber-900/80 text-amber-300 border border-amber-700/80 flex-shrink-0 mt-0.5">
-          <AlertTriangle className="w-5 h-5" />
+    <div className="flex w-full flex-col items-start justify-between gap-3 rounded-xl border border-amber-600/70 bg-amber-950/70 p-3 shadow-xl backdrop-blur-md sm:flex-row sm:items-center sm:p-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="mt-0.5 flex-shrink-0 rounded-lg border border-amber-700/80 bg-amber-900/80 p-2 text-amber-300">
+          <AlertTriangle className="h-4 w-4" />
         </div>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-amber-200 uppercase tracking-wide">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-wide text-amber-200 sm:text-sm">
               Tax Configuration Required
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-amber-900/80 text-amber-300 text-xs font-semibold border border-amber-700/60">
-              Net Balances Locked
+            <span className="rounded-full border border-amber-700/60 bg-amber-900/80 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+              Net Balance Locked
             </span>
           </div>
-          <p className="text-xs text-amber-200/90 leading-relaxed">
-            Financial net calculations are currently locked until all mandatory tax rates are set. Please provide:
+          <p className="mt-1 text-xs text-amber-200/80">
+            {missingFields.map((field) => field.label).join(', ')} must be completed in Settings.
           </p>
-          <ul className="list-disc list-inside text-xs text-amber-100 font-medium space-y-0.5 mt-1">
-            {missingFields.map((field) => (
-              <li key={field.key}>
-                ⚠️ Action Required: Please enter <strong className="text-amber-300 underline">{field.label}</strong> to view accurate Net Balances.
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
 
       <button
         type="button"
-        onClick={() => openModal('tax_config')}
-        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-lg hover:shadow-amber-500/20 flex-shrink-0 self-stretch md:self-auto justify-center"
+        onClick={() => openModal('settings', { section: 'data' })}
+        className="flex h-10 w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 text-xs font-bold text-slate-950 shadow-lg hover:bg-amber-400 sm:w-auto"
       >
-        <Settings className="w-4 h-4" />
-        <span>Configure Taxes</span>
-        <ArrowRight className="w-4 h-4" />
+        <Settings className="h-4 w-4" />
+        <span>Open Settings</span>
+        <ArrowRight className="h-4 w-4" />
       </button>
     </div>
   );
