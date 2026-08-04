@@ -9,6 +9,7 @@ import { PropertyHeaderRow } from './PropertyHeaderRow';
 import { DayColumn } from './DayColumn';
 import { BookingCell } from './BookingCell';
 import { DailyTotalColumn } from './DailyTotalColumn';
+import { MobileCalendarView } from './MobileCalendarView';
 
 interface PropertyCalendarGridProps {
   children?: React.ReactNode;
@@ -73,77 +74,81 @@ export function PropertyCalendarGrid({ children }: PropertyCalendarGridProps) {
   }, [focusedIndex, daysGrid, bookings, openModal, activeProperties]);
 
   return (
-    <div className="w-full flex-1 flex flex-col min-h-0 bg-slate-950">
-      <div
-        ref={containerRef}
-        className="w-full flex-1 overflow-auto custom-scrollbar relative touch-pan-x touch-pan-y"
-        tabIndex={0}
-      >
-        <div className="inline-block min-w-full align-top pb-6">
-          <LocationHeaderRow />
-          <PropertyHeaderRow />
+    <div className="relative flex w-full flex-1 min-h-0 flex-col bg-slate-950">
+      <MobileCalendarView />
 
-          {daysGrid.map((dayItem, dayIndex) => {
-            const isHoveredRow =
-              hoveredCell?.dateStr === dayItem.dateStr || focusedIndex?.dayIdx === dayIndex;
-            const activePropertyIds = new Set(activeProperties.map((property) => property.id));
-            const dailyTotalCents = calculateDailyTotalRevenue(
-              dayItem.dateStr,
-              bookings.filter((booking) => activePropertyIds.has(booking.propertyId))
-            );
+      <div className="hidden h-full min-h-0 flex-col md:flex">
+        <div
+          ref={containerRef}
+          className="relative w-full flex-1 overflow-auto custom-scrollbar touch-pan-x touch-pan-y"
+          tabIndex={0}
+        >
+          <div className="inline-block min-w-full align-top pb-6">
+            <LocationHeaderRow />
+            <PropertyHeaderRow />
 
-            return (
-              <div
-                key={dayItem.dateStr}
-                className={`flex items-center transition-colors ${
-                  dayItem.isWeekend ? 'bg-slate-900/20' : ''
-                }`}
-              >
-                <DayColumn
-                  dayNumber={dayItem.dayNumber}
-                  dateStr={dayItem.dateStr}
-                  weekday={dayItem.weekday}
-                  isWeekend={dayItem.isWeekend}
-                  isToday={dayItem.isToday}
-                  isHoveredRow={isHoveredRow}
-                />
+            {daysGrid.map((dayItem, dayIndex) => {
+              const isHoveredRow =
+                hoveredCell?.dateStr === dayItem.dateStr || focusedIndex?.dayIdx === dayIndex;
+              const activePropertyIds = new Set(activeProperties.map((property) => property.id));
+              const dailyTotalCents = calculateDailyTotalRevenue(
+                dayItem.dateStr,
+                bookings.filter((booking) => activePropertyIds.has(booking.propertyId))
+              );
 
-                {activeProperties.map((property, propertyIndex) => {
-                  const cellState = getCellBookingState(property.id, dayItem.dateStr, bookings);
-                  const isHoveredCol =
-                    hoveredCell?.propertyId === property.id || focusedIndex?.propIdx === propertyIndex;
-                  const isHoveredCell =
-                    (hoveredCell?.propertyId === property.id &&
-                      hoveredCell?.dateStr === dayItem.dateStr) ||
-                    (focusedIndex?.dayIdx === dayIndex &&
-                      focusedIndex?.propIdx === propertyIndex);
+              return (
+                <div
+                  key={dayItem.dateStr}
+                  className={`flex items-center transition-colors ${
+                    dayItem.isWeekend ? 'bg-slate-900/20' : ''
+                  }`}
+                >
+                  <DayColumn
+                    dayNumber={dayItem.dayNumber}
+                    dateStr={dayItem.dateStr}
+                    weekday={dayItem.weekday}
+                    isWeekend={dayItem.isWeekend}
+                    isToday={dayItem.isToday}
+                    isHoveredRow={isHoveredRow}
+                  />
 
-                  return (
-                    <div
-                      key={`${property.id}-${dayItem.dateStr}`}
-                      onClick={() => setFocusedIndex({ dayIdx: dayIndex, propIdx: propertyIndex })}
-                    >
-                      <BookingCell
-                        propertyId={property.id}
-                        dateStr={dayItem.dateStr}
-                        cellState={cellState}
-                        isHoveredRow={isHoveredRow}
-                        isHoveredCol={isHoveredCol}
-                        isHoveredCell={isHoveredCell}
-                      />
-                    </div>
-                  );
-                })}
+                  {activeProperties.map((property, propertyIndex) => {
+                    const cellState = getCellBookingState(property.id, dayItem.dateStr, bookings);
+                    const isHoveredCol =
+                      hoveredCell?.propertyId === property.id || focusedIndex?.propIdx === propertyIndex;
+                    const isHoveredCell =
+                      (hoveredCell?.propertyId === property.id &&
+                        hoveredCell?.dateStr === dayItem.dateStr) ||
+                      (focusedIndex?.dayIdx === dayIndex &&
+                        focusedIndex?.propIdx === propertyIndex);
 
-                <DailyTotalColumn
-                  dailyTotalCents={dailyTotalCents}
-                  isHoveredRow={isHoveredRow}
-                />
-              </div>
-            );
-          })}
+                    return (
+                      <div
+                        key={`${property.id}-${dayItem.dateStr}`}
+                        onClick={() => setFocusedIndex({ dayIdx: dayIndex, propIdx: propertyIndex })}
+                      >
+                        <BookingCell
+                          propertyId={property.id}
+                          dateStr={dayItem.dateStr}
+                          cellState={cellState}
+                          isHoveredRow={isHoveredRow}
+                          isHoveredCol={isHoveredCol}
+                          isHoveredCell={isHoveredCell}
+                        />
+                      </div>
+                    );
+                  })}
 
-          {children}
+                  <DailyTotalColumn
+                    dailyTotalCents={dailyTotalCents}
+                    isHoveredRow={isHoveredRow}
+                  />
+                </div>
+              );
+            })}
+
+            {children}
+          </div>
         </div>
       </div>
     </div>
