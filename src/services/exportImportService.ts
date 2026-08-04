@@ -11,6 +11,7 @@ import {
   FixedCommissionAllocationRule,
   IncomeTaxBasis,
   InsufficientTurnoverAction,
+  LocationConfig,
   PropertyConfig,
   TaxConfiguration,
   TaxTreatment,
@@ -42,7 +43,6 @@ const TAX_TREATMENTS = new Set<TaxTreatment>([
   'standard_vat',
   'vat_exempt',
 ]);
-const LOCATION_IDS = new Set(LOCATIONS.map((location) => location.id));
 const VAT_INCLUSIVITY_VALUES = new Set<VatInclusivity>(['inclusive', 'exclusive']);
 const VAT_BASIS_VALUES = new Set<VatBasis>([
   'gross',
@@ -151,13 +151,24 @@ function validateTaxConfiguration(value: unknown): value is TaxConfiguration {
   );
 }
 
+function validateLocation(value: unknown): value is LocationConfig {
+  return (
+    isObject(value) &&
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.name) &&
+    isNonEmptyString(value.headerColorClass) &&
+    isNonEmptyString(value.badgeBgClass) &&
+    isNonEmptyString(value.borderClass) &&
+    (value.properties == null || Array.isArray(value.properties))
+  );
+}
+
 function validateProperty(value: unknown): value is PropertyConfig {
   return (
     isObject(value) &&
     isNonEmptyString(value.id) &&
     isNonEmptyString(value.name) &&
     isNonEmptyString(value.locationId) &&
-    LOCATION_IDS.has(value.locationId) &&
     (value.active == null || typeof value.active === 'boolean')
   );
 }
@@ -179,6 +190,7 @@ function validateBooking(value: unknown): value is Booking {
 
   return (
     isNonNegativeNumber(value.nightlyRateCents) &&
+    isOptionalNonNegativeNumber(value.accommodationTotalCents) &&
     isNonNegativeNumber(value.discountCents) &&
     isNonNegativeNumber(value.cleaningFeeCents) &&
     isNonNegativeNumber(value.adults) &&
@@ -228,6 +240,7 @@ function hasDuplicateIds(values: Array<{ id: string }>): boolean {
 export class ExportImportService {
   public static generateBackup(
     taxConfiguration: TaxConfiguration,
+    locations: LocationConfig[],
     properties: PropertyConfig[],
     bookings: Booking[],
     expenses: Expense[],
@@ -249,10 +262,11 @@ export class ExportImportService {
         }));
 
     return {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       containsPii: includePii,
       taxConfiguration,
+      locations: locations.map((location) => ({ ...location, properties: [] })),
       properties,
       bookings: safeBookings,
       expenses,
@@ -282,6 +296,7 @@ export class ExportImportService {
       'Check In Date',
       'Check Out Date',
       'Nightly Rate (€)',
+      'Exact Accommodation Total (€)',
       'Cleaning Fee (€)',
       'Discount (€)',
       'Gross Revenue (€)',
@@ -306,6 +321,7 @@ export class ExportImportService {
         booking.checkInDate,
         booking.checkOutDate,
         euros(booking.nightlyRateCents),
+        euros(booking.accommodationTotalCents),
         euros(booking.cleaningFeeCents),
         euros(booking.discountCents),
         euros(totals.grossBookingRevenueCents),
@@ -476,6 +492,7 @@ export function exportFinancialSummaryCsv(
 
 export function exportJsonBackup(
   taxConfiguration: TaxConfiguration,
+  locations: LocationConfig[],
   properties: PropertyConfig[],
   bookings: Booking[],
   expenses: Expense[],
@@ -487,6 +504,7 @@ export function exportJsonBackup(
   ExportImportService.downloadJsonBackup(
     ExportImportService.generateBackup(
       taxConfiguration,
+      locations,
       properties,
       bookings,
       expenses,
@@ -519,6 +537,9 @@ export function validateBackupJson(
     if (!Array.isArray(object.extraIncomes)) {
       return { isValid: false, error: 'Backup is missing the extra income array.' };
     }
+    if (object.locations != null && !Array.isArray(object.locations)) {
+      return { isValid: false, error: 'Backup contains an invalid locations list.' };
+    }
     if (object.properties != null && !Array.isArray(object.properties)) {
       return { isValid: false, error: 'Backup contains an invalid properties list.' };
     }
@@ -529,6 +550,9 @@ export function validateBackupJson(
       return { isValid: false, error: 'Backup contains invalid user preferences.' };
     }
 
+    const invalidLocationIndex = Array.isArray(object.locations)
+      ? findInvalidIndex(object.locations, validateLocation)
+      : -1;
     const invalidPropertyIndex = Array.isArray(object.properties)
       ? findInvalidIndex(object.properties, validateProperty)
       : -1;
@@ -536,6 +560,12 @@ export function validateBackupJson(
     const invalidExpenseIndex = findInvalidIndex(object.expenses, validateExpense);
     const invalidIncomeIndex = findInvalidIndex(object.extraIncomes, validateExtraIncome);
 
+    if (invalidLocationIndex >= 0) {
+      return {
+        isValid: false,
+        error: `Location record ${invalidLocationIndex + 1} is incomplete or invalid.`,
+      };
+    }
     if (invalidPropertyIndex >= 0) {
       return {
         isValid: false,
@@ -561,6 +591,9 @@ export function validateBackupJson(
       };
     }
 
+    const locations = Array.isArray(object.locations)
+      ? (object.locations as LocationConfig[])
+      : undefined;
     const properties = Array.isArray(object.properties)
       ? (object.properties as PropertyConfig[])
       : undefined;
@@ -568,6 +601,9 @@ export function validateBackupJson(
     const expenses = object.expenses as Expense[];
     const extraIncomes = object.extraIncomes as ExtraIncome[];
 
+    if (locations && hasDuplicateIds(locations)) {
+      return { isValid: false, error: 'Backup contains duplicate location IDs.' };
+    }
     if (properties && hasDuplicateIds(properties)) {
       return { isValid: false, error: 'Backup contains duplicate property IDs.' };
     }
@@ -582,6 +618,19 @@ export function validateBackupJson(
     }
 
     if (properties) {
+      const validLocationIds = new Set(
+        (locations ?? LOCATIONS).map((location) => location.id)
+      );
+      const invalidPropertyLocation = properties.find(
+        (property) => !validLocationIds.has(property.locationId)
+      );
+      if (invalidPropertyLocation) {
+        return {
+          isValid: false,
+          error: `Property ${invalidPropertyLocation.name} references a location that is not included in the backup.`,
+        };
+      }
+
       const propertyIds = new Set(properties.map((property) => property.id));
       const orphanBooking = bookings.find((booking) => !propertyIds.has(booking.propertyId));
       const orphanExpense = expenses.find((expense) => !propertyIds.has(expense.propertyId));
@@ -604,6 +653,7 @@ export function validateBackupJson(
         ...DEFAULT_TAX_CONFIG,
         ...(object.taxConfiguration as Partial<TaxConfiguration>),
       },
+      locations: locations?.map((location) => ({ ...location, properties: [] })),
       properties,
       bookings,
       expenses,
