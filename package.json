@@ -10,7 +10,8 @@
     "workspace": "bash .devcontainer/start-dev.sh",
     "serve:workspace": "node server.mjs",
     "smoke:workspace": "node scripts/smoke-workspace.mjs",
-    "verify": "npm run lint && npm run build && npm run smoke:workspace",
+    "test:core": "tsx --test tests/*.test.ts",
+    "verify": "npm run lint && npm run test:core && npm run build && npm run smoke:workspace",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
