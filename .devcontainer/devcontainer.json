@@ -6,8 +6,8 @@
     "3000": {
       "label": "Property Management",
       "protocol": "http",
-      "onAutoForward": "openPreview",
-      "visibility": "private"
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
     }
   },
   "postCreateCommand": "npm install",
