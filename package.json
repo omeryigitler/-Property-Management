@@ -7,7 +7,9 @@
     "dev": "vite --host 0.0.0.0 --port 3000 --strictPort --clearScreen false",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "workspace": "bash .devcontainer/start-dev.sh",
+    "serve:workspace": "node server.mjs",
+    "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
