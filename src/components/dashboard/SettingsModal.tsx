@@ -4,15 +4,13 @@ import {
   Building2,
   Database,
   Download,
-  Home,
   LayoutDashboard,
   Plus,
-  ReceiptText,
   RotateCcw,
   Save,
   Settings,
-  ShieldCheck,
   ShieldAlert,
+  ShieldCheck,
   SlidersHorizontal,
   WalletCards,
   X,
@@ -22,19 +20,12 @@ import { getActiveProperties, usePropertyStore } from '../../store/usePropertySt
 import { LOCATIONS } from '../../config/locations';
 import { PropertyConfig } from '../../types';
 import { CustomSelect } from '../common/CustomSelect';
-import { centsToEuros, eurosToCents, formatCents } from '../../utils/currency';
-import { isRentExpense } from '../../utils/expenseUtilities';
+import { eurosToCents } from '../../utils/currency';
 import { isTaxConfigured } from '../../utils/taxCalculations';
 import { MONTH_NAMES } from '../../utils/dateUtilities';
-
-const MANAGED_INCOME_NOTE = 'Managed from Settings · Monthly Additional Income';
+import { MonthlyFinanceSettings } from './settings/MonthlyFinanceSettings';
 
 type SettingsSection = 'overview' | 'properties' | 'finance' | 'display' | 'data';
-
-interface FinanceDraft {
-  rent: string;
-  income: string;
-}
 
 const sectionOptions: Array<{
   id: SettingsSection;
@@ -73,14 +64,20 @@ function PropertyEditorCard({
 
   const handleSave = () => {
     if (!name.trim()) return;
-    const updated = {
-      ...property,
+
+    updateProperty(property.id, {
       name: name.trim().toUpperCase(),
       locationId,
       active,
-    };
-    updateProperty(property.id, updated);
-    onSaved(updated);
+    });
+
+    const saved = usePropertyStore
+      .getState()
+      .properties.find((item) => item.id === property.id);
+    if (saved) {
+      setActive(saved.active !== false);
+      onSaved(saved);
+    }
   };
 
   return (
@@ -141,8 +138,6 @@ export function SettingsModal() {
   const selectedMonth = useDashboardStore((state) => state.selectedMonth);
   const selectedYear = useDashboardStore((state) => state.selectedYear);
   const taxConfiguration = useDashboardStore((state) => state.taxConfiguration);
-  const expenses = useDashboardStore((state) => state.expenses);
-  const extraIncomes = useDashboardStore((state) => state.extraIncomes);
   const preferences = useDashboardStore((state) => state.userPreferences);
   const updateUserPreferences = useDashboardStore((state) => state.updateUserPreferences);
 
@@ -156,7 +151,6 @@ export function SettingsModal() {
   const [newPropertyName, setNewPropertyName] = useState('');
   const [newLocationId, setNewLocationId] = useState(LOCATIONS[0]?.id ?? '');
   const [newPropertyRent, setNewPropertyRent] = useState('0');
-  const [financeDrafts, setFinanceDrafts] = useState<Record<string, FinanceDraft>>({});
 
   const taxesConfigured = isTaxConfigured(taxConfiguration);
 
@@ -170,38 +164,6 @@ export function SettingsModal() {
       setSection(requestedSection ?? 'overview');
     }
   }, [activeModal, requestedSection]);
-
-  useEffect(() => {
-    if (activeModal !== 'settings') return;
-
-    const nextDrafts: Record<string, FinanceDraft> = {};
-    for (const property of activeProperties) {
-      const rentCents = expenses
-        .filter(
-          (expense) =>
-            expense.propertyId === property.id &&
-            expense.year === selectedYear &&
-            expense.month === selectedMonth &&
-            isRentExpense(expense)
-        )
-        .reduce((sum, expense) => sum + expense.amountCents, 0);
-      const managedIncomeCents = extraIncomes
-        .filter(
-          (income) =>
-            income.propertyId === property.id &&
-            income.year === selectedYear &&
-            income.month === selectedMonth &&
-            income.notes === MANAGED_INCOME_NOTE
-        )
-        .reduce((sum, income) => sum + income.amountCents, 0);
-
-      nextDrafts[property.id] = {
-        rent: centsToEuros(rentCents).toString(),
-        income: centsToEuros(managedIncomeCents).toString(),
-      };
-    }
-    setFinanceDrafts(nextDrafts);
-  }, [activeModal, activeProperties, expenses, extraIncomes, selectedMonth, selectedYear]);
 
   if (activeModal !== 'settings') return null;
 
@@ -223,7 +185,7 @@ export function SettingsModal() {
         expenses: [
           ...state.expenses,
           {
-            id: `exp-rent-${property.id}-${selectedYear}-${selectedMonth}-${Date.now()}`,
+            id: `exp-rent-${property.id}-${selectedYear}-${selectedMonth}`,
             propertyId: property.id,
             year: selectedYear,
             month: selectedMonth,
@@ -260,182 +222,6 @@ export function SettingsModal() {
     });
   };
 
-  const handleSaveMonthlyFinance = () => {
-    const now = new Date().toISOString();
-    let nextExpenses = [...useDashboardStore.getState().expenses];
-    let nextExtraIncomes = [...useDashboardStore.getState().extraIncomes];
-
-    for (const property of activeProperties) {
-      const draft = financeDrafts[property.id] ?? { rent: '0', income: '0' };
-      const rentCents = Math.max(0, eurosToCents(draft.rent));
-      const incomeCents = Math.max(0, eurosToCents(draft.income));
-
-      const rentIndexes = nextExpenses
-        .map((expense, index) => ({ expense, index }))
-        .filter(
-          ({ expense }) =>
-            expense.propertyId === property.id &&
-            expense.year === selectedYear &&
-            expense.month === selectedMonth &&
-            isRentExpense(expense)
-        );
-
-      if (rentIndexes.length > 0) {
-        const [first, ...duplicates] = rentIndexes;
-        nextExpenses[first.index] = {
-          ...nextExpenses[first.index],
-          amountCents: rentCents,
-          isRecurring: true,
-          updatedAt: now,
-        };
-        const duplicateIds = new Set(duplicates.map(({ expense }) => expense.id));
-        nextExpenses = nextExpenses.filter((expense) => !duplicateIds.has(expense.id));
-      } else {
-        nextExpenses.push({
-          id: `exp-rent-${property.id}-${selectedYear}-${selectedMonth}-${Date.now()}`,
-          propertyId: property.id,
-          year: selectedYear,
-          month: selectedMonth,
-          label: 'Rent',
-          amountCents: rentCents,
-          category: 'Rent',
-          isDeductible: true,
-          isRecurring: true,
-          notes: 'Monthly property rent',
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
-
-      const managedIncomeIndexes = nextExtraIncomes
-        .map((income, index) => ({ income, index }))
-        .filter(
-          ({ income }) =>
-            income.propertyId === property.id &&
-            income.year === selectedYear &&
-            income.month === selectedMonth &&
-            income.notes === MANAGED_INCOME_NOTE
-        );
-
-      if (managedIncomeIndexes.length > 0) {
-        const [first, ...duplicates] = managedIncomeIndexes;
-        nextExtraIncomes[first.index] = {
-          ...nextExtraIncomes[first.index],
-          amountCents: incomeCents,
-          updatedAt: now,
-        };
-        const duplicateIds = new Set(duplicates.map(({ income }) => income.id));
-        nextExtraIncomes = nextExtraIncomes.filter((income) => !duplicateIds.has(income.id));
-      } else if (incomeCents > 0) {
-        nextExtraIncomes.push({
-          id: `ext-managed-${property.id}-${selectedYear}-${selectedMonth}-${Date.now()}`,
-          propertyId: property.id,
-          year: selectedYear,
-          month: selectedMonth,
-          label: 'Additional Income',
-          amountCents: incomeCents,
-          taxTreatment: taxConfiguration.defaultExtraIncomeTaxTreatment || 'standard_vat',
-          notes: MANAGED_INCOME_NOTE,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
-    }
-
-    useDashboardStore.setState({ expenses: nextExpenses, extraIncomes: nextExtraIncomes });
-    useDashboardStore.getState()._persist();
-    addActivity(
-      'expense_saved',
-      'Monthly Finance',
-      `Updated rent and additional income for ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
-    );
-    addToast({
-      type: 'success',
-      title: 'Monthly Finance Saved',
-      message: `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear} values updated.`,
-    });
-  };
-
-  const handleCopyPreviousMonth = () => {
-    const previousMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
-    const previousYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
-    const now = new Date().toISOString();
-    const state = useDashboardStore.getState();
-    let nextExpenses = [...state.expenses];
-    let nextExtraIncomes = [...state.extraIncomes];
-    let copied = 0;
-
-    for (const property of activeProperties) {
-      const previousRecurring = state.expenses.filter(
-        (expense) =>
-          expense.propertyId === property.id &&
-          expense.year === previousYear &&
-          expense.month === previousMonth &&
-          expense.isRecurring
-      );
-
-      for (const source of previousRecurring) {
-        const exists = nextExpenses.some(
-          (expense) =>
-            expense.propertyId === property.id &&
-            expense.year === selectedYear &&
-            expense.month === selectedMonth &&
-            expense.category === source.category &&
-            expense.label === source.label
-        );
-        if (exists) continue;
-
-        nextExpenses.push({
-          ...source,
-          id: `exp-copy-${property.id}-${selectedYear}-${selectedMonth}-${Date.now()}-${copied}`,
-          year: selectedYear,
-          month: selectedMonth,
-          createdAt: now,
-          updatedAt: now,
-        });
-        copied += 1;
-      }
-
-      const previousManagedIncome = state.extraIncomes.find(
-        (income) =>
-          income.propertyId === property.id &&
-          income.year === previousYear &&
-          income.month === previousMonth &&
-          income.notes === MANAGED_INCOME_NOTE
-      );
-      const currentManagedIncome = nextExtraIncomes.some(
-        (income) =>
-          income.propertyId === property.id &&
-          income.year === selectedYear &&
-          income.month === selectedMonth &&
-          income.notes === MANAGED_INCOME_NOTE
-      );
-
-      if (previousManagedIncome && !currentManagedIncome) {
-        nextExtraIncomes.push({
-          ...previousManagedIncome,
-          id: `ext-copy-${property.id}-${selectedYear}-${selectedMonth}-${Date.now()}`,
-          year: selectedYear,
-          month: selectedMonth,
-          createdAt: now,
-          updatedAt: now,
-        });
-        copied += 1;
-      }
-    }
-
-    useDashboardStore.setState({ expenses: nextExpenses, extraIncomes: nextExtraIncomes });
-    useDashboardStore.getState()._persist();
-    addToast({
-      type: copied > 0 ? 'success' : 'info',
-      title: copied > 0 ? 'Previous Month Copied' : 'Nothing to Copy',
-      message:
-        copied > 0
-          ? `${copied} recurring value${copied === 1 ? '' : 's'} added.`
-          : 'Current month already contains the recurring values.',
-    });
-  };
-
   const handleReset = () => {
     openConfirmation({
       title: 'Reset Application Data?',
@@ -454,6 +240,7 @@ export function SettingsModal() {
   const navButton = (item: (typeof sectionOptions)[number]) => {
     const Icon = item.icon;
     const selected = section === item.id;
+
     return (
       <button
         key={item.id}
@@ -475,15 +262,15 @@ export function SettingsModal() {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-0 backdrop-blur-md sm:p-4">
       <div className="flex h-[100dvh] w-full flex-col overflow-hidden border-slate-700/90 bg-slate-900 text-slate-100 shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:max-w-6xl sm:rounded-2xl sm:border">
         <header className="flex flex-shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3.5 sm:px-5">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-lg border border-cyan-800 bg-cyan-950/70 p-2 text-cyan-300">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex-shrink-0 rounded-lg border border-cyan-800 bg-cyan-950/70 p-2 text-cyan-300">
               <Settings className="h-5 w-5" />
             </div>
-            <div>
-              <h3 className="font-display text-base font-black uppercase tracking-tight sm:text-lg">
+            <div className="min-w-0">
+              <h3 className="truncate font-display text-base font-black uppercase tracking-tight sm:text-lg">
                 Settings & Management
               </h3>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Properties, monthly finance, tax, backup and display
               </p>
             </div>
@@ -491,7 +278,7 @@ export function SettingsModal() {
           <button
             type="button"
             onClick={closeModal}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+            className="flex-shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
             aria-label="Close settings"
           >
             <X className="h-5 w-5" />
@@ -499,11 +286,11 @@ export function SettingsModal() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-          <nav className="flex flex-shrink-0 gap-2 overflow-x-auto border-b border-slate-800 bg-slate-900 px-3 py-2.5 no-scrollbar sm:w-48 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3">
+          <nav className="no-scrollbar flex flex-shrink-0 gap-2 overflow-x-auto border-b border-slate-800 bg-slate-900 px-3 py-2.5 sm:w-48 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3">
             {sectionOptions.map(navButton)}
           </nav>
 
-          <main className="min-h-0 flex-1 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] no-scrollbar sm:p-5">
+          <main className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
             {section === 'overview' && (
               <div className="space-y-4">
                 <div>
@@ -511,7 +298,7 @@ export function SettingsModal() {
                     Management Overview
                   </h4>
                   <p className="mt-1 text-xs text-slate-500">
-                    All operational settings are grouped here so the calendar remains clean.
+                    Editing is kept here so the calendar and finance ledger remain clean and readable.
                   </p>
                 </div>
 
@@ -536,7 +323,7 @@ export function SettingsModal() {
                     <WalletCards className="h-5 w-5 text-violet-400" />
                     <p className="mt-3 text-sm font-black text-slate-100">Monthly Finance</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Rent and additional income · {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                      Rent, additional income and expenses · {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
                     </p>
                   </button>
 
@@ -627,96 +414,7 @@ export function SettingsModal() {
               </div>
             )}
 
-            {section === 'finance' && (
-              <div className="space-y-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <h4 className="font-display text-sm font-black uppercase tracking-wide text-slate-100">
-                      Monthly Finance
-                    </h4>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {MONTH_NAMES[selectedMonth - 1]} {selectedYear} · rent and settings-managed additional income
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyPreviousMonth}
-                    className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs font-black uppercase tracking-wider text-slate-300 hover:bg-slate-800"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" /> Copy Previous Month
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                  {activeProperties.map((property) => {
-                    const draft = financeDrafts[property.id] ?? { rent: '0', income: '0' };
-                    return (
-                      <div key={property.id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-3.5">
-                        <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-800 pb-2.5">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <Home className="h-4 w-4 flex-shrink-0 text-cyan-400" />
-                            <span className="truncate text-xs font-black uppercase tracking-wider text-slate-100">
-                              {property.name}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-bold uppercase text-slate-500">
-                            {LOCATIONS.find((location) => location.id === property.locationId)?.name}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-black uppercase tracking-wider text-violet-300">
-                              Monthly Rent (€)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={draft.rent}
-                              onChange={(event) =>
-                                setFinanceDrafts((current) => ({
-                                  ...current,
-                                  [property.id]: { ...draft, rent: event.target.value },
-                                }))
-                              }
-                              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-mono text-slate-100 outline-none focus:border-violet-500"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                              Additional Income (€)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={draft.income}
-                              onChange={(event) =>
-                                setFinanceDrafts((current) => ({
-                                  ...current,
-                                  [property.id]: { ...draft, income: event.target.value },
-                                }))
-                              }
-                              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-mono text-slate-100 outline-none focus:border-emerald-500"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="sticky bottom-0 flex justify-end border-t border-slate-800 bg-slate-900/95 py-3 backdrop-blur">
-                  <button
-                    type="button"
-                    onClick={handleSaveMonthlyFinance}
-                    className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-black uppercase tracking-wider text-white hover:bg-emerald-500 sm:w-auto"
-                  >
-                    <Save className="h-4 w-4" /> Save Monthly Finance
-                  </button>
-                </div>
-              </div>
-            )}
+            {section === 'finance' && <MonthlyFinanceSettings />}
 
             {section === 'display' && (
               <div className="space-y-4">
@@ -779,7 +477,9 @@ export function SettingsModal() {
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                   <button
                     type="button"
-                    onClick={() => openModal('tax_config', { returnToSettings: true, returnSection: 'data' })}
+                    onClick={() =>
+                      openModal('tax_config', { returnToSettings: true, returnSection: 'data' })
+                    }
                     className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-emerald-700"
                   >
                     {taxesConfigured ? (
@@ -797,7 +497,9 @@ export function SettingsModal() {
 
                   <button
                     type="button"
-                    onClick={() => openModal('export_import', { returnToSettings: true, returnSection: 'data' })}
+                    onClick={() =>
+                      openModal('export_import', { returnToSettings: true, returnSection: 'data' })
+                    }
                     className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-cyan-700"
                   >
                     <Download className="h-5 w-5 text-cyan-400" />
@@ -809,7 +511,9 @@ export function SettingsModal() {
 
                   <button
                     type="button"
-                    onClick={() => openModal('history', { returnToSettings: true, returnSection: 'data' })}
+                    onClick={() =>
+                      openModal('history', { returnToSettings: true, returnSection: 'data' })
+                    }
                     className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left hover:border-violet-700"
                   >
                     <Activity className="h-5 w-5 text-violet-400" />
