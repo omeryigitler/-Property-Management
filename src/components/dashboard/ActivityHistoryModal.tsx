@@ -1,35 +1,46 @@
 import React from 'react';
-import { X, History, Clock } from 'lucide-react';
+import { X, History, Clock, ArrowLeft } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 import { formatReadableDate } from '../../utils/dateUtilities';
 
 export function ActivityHistoryModal() {
-  const activeModal = useDashboardStore((s) => s.activeModal);
-  const closeModal = useDashboardStore((s) => s.closeModal);
-  const history = useDashboardStore((s) => s.activityHistory);
+  const activeModal = useDashboardStore((state) => state.activeModal);
+  const modalParams = useDashboardStore((state) => state.modalParams);
+  const closeModal = useDashboardStore((state) => state.closeModal);
+  const openModal = useDashboardStore((state) => state.openModal);
+  const history = useDashboardStore((state) => state.activityHistory);
 
   if (activeModal !== 'history') return null;
 
+  const returnToSettings = Boolean(modalParams.returnToSettings);
+  const handleClose = () => {
+    if (returnToSettings) {
+      openModal('settings', { section: modalParams.returnSection || 'data' });
+    } else {
+      closeModal();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl text-slate-100 flex flex-col max-h-[85dvh] overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-0 backdrop-blur-md sm:p-4">
+      <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-slate-900 text-slate-100 shadow-2xl sm:h-auto sm:max-h-[88dvh] sm:max-w-2xl sm:rounded-2xl sm:border sm:border-slate-700/90">
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3.5 sm:px-6 sm:py-4">
           <div className="flex items-center gap-2.5">
-            <History className="w-5 h-5 text-cyan-400" />
-            <h3 className="text-lg font-bold text-slate-100">Audit Activity Log</h3>
+            <History className="h-5 w-5 text-cyan-400" />
+            <h3 className="text-base font-bold text-slate-100 sm:text-lg">Audit Activity Log</h3>
           </div>
           <button
             type="button"
-            onClick={closeModal}
-            className="p-1.5 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition-colors"
+            onClick={handleClose}
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
           >
-            <X className="w-5 h-5" />
+            {returnToSettings ? <ArrowLeft className="h-5 w-5" /> : <X className="h-5 w-5" />}
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto space-y-3">
+        <div className="flex-1 space-y-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] no-scrollbar sm:p-6">
           {history.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 text-sm">No activity recorded yet.</div>
+            <div className="py-12 text-center text-sm text-slate-500">No activity recorded yet.</div>
           ) : (
             history.map((record) => {
               const timeStr = new Date(record.timestamp).toLocaleTimeString([], {
@@ -37,35 +48,32 @@ export function ActivityHistoryModal() {
                 minute: '2-digit',
               });
               const dateStr = record.timestamp.slice(0, 10);
-
               const badgeColor = record.action.includes('created')
                 ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
                 : record.action.includes('deleted')
-                ? 'bg-rose-950 text-rose-300 border-rose-800'
-                : record.action.includes('updated')
-                ? 'bg-cyan-950 text-cyan-300 border-cyan-800'
-                : 'bg-amber-950 text-amber-300 border-amber-800';
+                  ? 'bg-rose-950 text-rose-300 border-rose-800'
+                  : record.action.includes('updated') || record.action.includes('saved')
+                    ? 'bg-cyan-950 text-cyan-300 border-cyan-800'
+                    : 'bg-amber-950 text-amber-300 border-amber-800';
 
               return (
                 <div
                   key={record.id}
-                  className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
+                  className="flex flex-col items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3.5 sm:flex-row sm:items-center"
                 >
-                  <div className="flex items-start gap-3">
-                    <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${badgeColor}`}>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className={`flex-shrink-0 rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${badgeColor}`}>
                       {record.action.replace(/_/g, ' ')}
                     </span>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-semibold text-slate-200">{record.entity}</span>
-                      <span className="text-xs text-slate-400">{record.description}</span>
+                    <div className="min-w-0">
+                      <span className="block truncate text-xs font-semibold text-slate-200">{record.entity}</span>
+                      <span className="block text-xs text-slate-400">{record.description}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 flex-shrink-0 self-end sm:self-auto">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>
-                      {formatReadableDate(dateStr)} {timeStr}
-                    </span>
+                  <div className="flex flex-shrink-0 items-center gap-1.5 self-end text-[11px] text-slate-500 sm:self-auto">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{formatReadableDate(dateStr)} {timeStr}</span>
                   </div>
                 </div>
               );
@@ -73,13 +81,14 @@ export function ActivityHistoryModal() {
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-800 flex justify-end bg-slate-900/90">
+        <div className="flex flex-shrink-0 justify-end border-t border-slate-800 bg-slate-900/95 p-3 sm:p-4">
           <button
             type="button"
-            onClick={closeModal}
-            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+            onClick={handleClose}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-800 px-4 text-xs font-semibold text-slate-200 hover:bg-slate-700 sm:w-auto"
           >
-            Close
+            {returnToSettings && <ArrowLeft className="h-3.5 w-3.5" />}
+            {returnToSettings ? 'Back to Settings' : 'Close'}
           </button>
         </div>
       </div>
