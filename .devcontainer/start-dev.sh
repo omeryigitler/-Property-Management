@@ -10,8 +10,6 @@ cd "$ROOT_DIR"
 
 echo "[Property Management] Preparing development server on port ${PORT}..."
 
-# A previous detached Vite process can keep the forwarded port alive while
-# serving stale or incomplete modules. Always clear the listener first.
 if command -v lsof >/dev/null 2>&1; then
   LISTENERS="$(lsof -tiTCP:${PORT} -sTCP:LISTEN 2>/dev/null || true)"
   if [[ -n "$LISTENERS" ]]; then
@@ -40,8 +38,6 @@ nohup npm run dev >"$LOG_FILE" 2>&1 </dev/null &
 DEV_PID=$!
 echo "$DEV_PID" > "$PID_FILE"
 
-# Verify both the HTTP server and the modules that previously produced a
-# misleading white preview when Vite was stale or compilation failed.
 CHECK_PATHS=(
   "/"
   "/@vite/client"
@@ -68,8 +64,31 @@ for _ in $(seq 1 45); do
   done
 
   if [[ "$READY" == true ]]; then
+    BROWSE_URL=""
+
+    if command -v gh >/dev/null 2>&1 && [[ -n "${CODESPACE_NAME:-}" ]]; then
+      gh codespace ports visibility "${PORT}:public" -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
+      BROWSE_URL="$(
+        gh codespace ports -c "$CODESPACE_NAME" --json sourcePort,browseUrl \
+          --jq ".[] | select(.sourcePort == ${PORT}) | .browseUrl" 2>/dev/null | head -n 1 || true
+      )"
+    fi
+
+    if [[ -z "$BROWSE_URL" && -n "${CODESPACE_NAME:-}" ]]; then
+      BROWSE_URL="https://${CODESPACE_NAME}-${PORT}.app.github.dev"
+    fi
+
     echo "[Property Management] Ready: http://localhost:${PORT}"
-    echo "[Property Management] Codespaces preview can now be opened from the Ports panel."
+
+    if [[ -n "$BROWSE_URL" ]]; then
+      echo "[Property Management] Opening: ${BROWSE_URL}"
+      if command -v code >/dev/null 2>&1; then
+        code --open-url "$BROWSE_URL" >/dev/null 2>&1 || true
+      fi
+    else
+      echo "[Property Management] Open port ${PORT} from the Ports panel."
+    fi
+
     exit 0
   fi
 
