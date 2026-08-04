@@ -2,10 +2,13 @@ import {
   ActivityRecord,
   BackupData,
   Booking,
+  BookingStatus,
+  Channel,
   Expense,
   ExtraIncome,
   PropertyConfig,
   TaxConfiguration,
+  TaxTreatment,
   UserPreferences,
 } from '../types';
 import { ALL_PROPERTIES } from '../config/locations';
@@ -13,8 +16,25 @@ import {
   calculateBookingRevenueAndCommission,
   calculatePropertyFinancials,
 } from './financialCalculationService';
-import { DEFAULT_USER_PREFERENCES } from './persistenceRepository';
+import {
+  DEFAULT_TAX_CONFIG,
+  DEFAULT_USER_PREFERENCES,
+} from './persistenceRepository';
 import { isRentExpense } from '../utils/expenseUtilities';
+
+const CHANNELS = new Set<Channel>(['airbnb', 'booking_com', 'direct', 'vrbo']);
+const BOOKING_STATUSES = new Set<BookingStatus>([
+  'confirmed',
+  'provisional',
+  'cancelled',
+  'checked_in',
+  'checked_out',
+]);
+const TAX_TREATMENTS = new Set<TaxTreatment>([
+  'accommodation_vat',
+  'standard_vat',
+  'vat_exempt',
+]);
 
 function csvCell(value: string | number | null | undefined): string {
   const text = value == null ? '' : String(value);
@@ -34,11 +54,103 @@ function downloadTextFile(content: string, filename: string, type: string): void
 }
 
 function euros(cents: number | null | undefined): string {
-  return cents == null ? '' : (cents / 100).toFixed(2);
+  return cents == null || !Number.isFinite(cents) ? '' : (cents / 100).toFixed(2);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isValidDateString(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+function validateProperty(value: unknown): value is PropertyConfig {
+  return (
+    isObject(value) &&
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.name) &&
+    isNonEmptyString(value.locationId) &&
+    (value.active == null || typeof value.active === 'boolean')
+  );
+}
+
+function validateBooking(value: unknown): value is Booking {
+  if (!isObject(value)) return false;
+  if (
+    !isNonEmptyString(value.id) ||
+    !isNonEmptyString(value.propertyId) ||
+    !isNonEmptyString(value.guestName) ||
+    !CHANNELS.has(value.channel as Channel) ||
+    !BOOKING_STATUSES.has(value.status as BookingStatus) ||
+    !isValidDateString(value.checkInDate) ||
+    !isValidDateString(value.checkOutDate) ||
+    value.checkOutDate <= value.checkInDate
+  ) {
+    return false;
+  }
+
+  return (
+    isNonNegativeNumber(value.nightlyRateCents) &&
+    isNonNegativeNumber(value.discountCents) &&
+    isNonNegativeNumber(value.cleaningFeeCents) &&
+    isNonNegativeNumber(value.adults) &&
+    isNonNegativeNumber(value.children)
+  );
+}
+
+function validateExpense(value: unknown): value is Expense {
+  return (
+    isObject(value) &&
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.propertyId) &&
+    Number.isInteger(value.year) &&
+    Number.isInteger(value.month) &&
+    Number(value.month) >= 1 &&
+    Number(value.month) <= 12 &&
+    isNonEmptyString(value.label) &&
+    isNonEmptyString(value.category) &&
+    isNonNegativeNumber(value.amountCents) &&
+    typeof value.isDeductible === 'boolean'
+  );
+}
+
+function validateExtraIncome(value: unknown): value is ExtraIncome {
+  return (
+    isObject(value) &&
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.propertyId) &&
+    Number.isInteger(value.year) &&
+    Number.isInteger(value.month) &&
+    Number(value.month) >= 1 &&
+    Number(value.month) <= 12 &&
+    isNonEmptyString(value.label) &&
+    isNonNegativeNumber(value.amountCents) &&
+    TAX_TREATMENTS.has(value.taxTreatment as TaxTreatment)
+  );
+}
+
+function findInvalidIndex(values: unknown[], validator: (value: unknown) => boolean): number {
+  return values.findIndex((value) => !validator(value));
+}
+
+function hasDuplicateIds(values: Array<{ id: string }>): boolean {
+  return new Set(values.map((value) => value.id)).size !== values.length;
 }
 
 export class ExportImportService {
@@ -79,9 +191,8 @@ export class ExportImportService {
   }
 
   public static downloadJsonBackup(backup: BackupData, filename?: string): void {
-    const jsonString = JSON.stringify(backup, null, 2);
     downloadTextFile(
-      jsonString,
+      JSON.stringify(backup, null, 2),
       filename ||
         `short_let_backup_${backup.containsPii ? 'FULL_PII' : 'ANONYMIZED'}_${new Date()
           .toISOString()
@@ -126,7 +237,7 @@ export class ExportImportService {
         euros(booking.cleaningFeeCents),
         euros(booking.discountCents),
         euros(totals.grossBookingRevenueCents),
-        (booking.commissionPercentage || 0).toFixed(1),
+        Number(booking.commissionPercentage ?? 0).toFixed(1),
         euros(totals.otaCommissionCents),
         euros(totals.netBookingRevenueCents),
         booking.status,
@@ -195,7 +306,6 @@ export function exportFinancialSummaryCsv(
       extraIncomes,
       taxConfig
     );
-
     const periodExpenses = expenses.filter(
       (expense) =>
         expense.propertyId === property.id &&
@@ -275,13 +385,13 @@ export function exportFinancialSummaryCsv(
       : 'Tax configuration required',
   ]);
 
-  const metadataRows = [
+  const csvContent = [
     ['Report Year', year],
     ['Report Month', month],
     [],
-  ];
-
-  const csvContent = [...metadataRows, headers, ...rows]
+    headers,
+    ...rows,
+  ]
     .map((row) => row.map((value) => csvCell(value)).join(','))
     .join('\n');
 
@@ -302,17 +412,18 @@ export function exportJsonBackup(
   activityHistory: ActivityRecord[],
   includePii: boolean = false
 ): void {
-  const backup = ExportImportService.generateBackup(
-    taxConfiguration,
-    properties,
-    bookings,
-    expenses,
-    extraIncomes,
-    userPreferences,
-    activityHistory,
-    includePii
+  ExportImportService.downloadJsonBackup(
+    ExportImportService.generateBackup(
+      taxConfiguration,
+      properties,
+      bookings,
+      expenses,
+      extraIncomes,
+      userPreferences,
+      activityHistory,
+      includePii
+    )
   );
-  ExportImportService.downloadJsonBackup(backup);
 }
 
 export function validateBackupJson(
@@ -346,21 +457,88 @@ export function validateBackupJson(
       return { isValid: false, error: 'Backup contains invalid user preferences.' };
     }
 
+    const invalidPropertyIndex = Array.isArray(object.properties)
+      ? findInvalidIndex(object.properties, validateProperty)
+      : -1;
+    const invalidBookingIndex = findInvalidIndex(object.bookings, validateBooking);
+    const invalidExpenseIndex = findInvalidIndex(object.expenses, validateExpense);
+    const invalidIncomeIndex = findInvalidIndex(object.extraIncomes, validateExtraIncome);
+
+    if (invalidPropertyIndex >= 0) {
+      return {
+        isValid: false,
+        error: `Property record ${invalidPropertyIndex + 1} is incomplete or invalid.`,
+      };
+    }
+    if (invalidBookingIndex >= 0) {
+      return {
+        isValid: false,
+        error: `Booking record ${invalidBookingIndex + 1} is incomplete or has invalid dates.`,
+      };
+    }
+    if (invalidExpenseIndex >= 0) {
+      return {
+        isValid: false,
+        error: `Expense record ${invalidExpenseIndex + 1} is incomplete or invalid.`,
+      };
+    }
+    if (invalidIncomeIndex >= 0) {
+      return {
+        isValid: false,
+        error: `Extra income record ${invalidIncomeIndex + 1} is incomplete or invalid.`,
+      };
+    }
+
+    const properties = Array.isArray(object.properties)
+      ? (object.properties as PropertyConfig[])
+      : undefined;
+    const bookings = object.bookings as Booking[];
+    const expenses = object.expenses as Expense[];
+    const extraIncomes = object.extraIncomes as ExtraIncome[];
+
+    if (properties && hasDuplicateIds(properties)) {
+      return { isValid: false, error: 'Backup contains duplicate property IDs.' };
+    }
+    if (hasDuplicateIds(bookings)) {
+      return { isValid: false, error: 'Backup contains duplicate booking IDs.' };
+    }
+    if (hasDuplicateIds(expenses)) {
+      return { isValid: false, error: 'Backup contains duplicate expense IDs.' };
+    }
+    if (hasDuplicateIds(extraIncomes)) {
+      return { isValid: false, error: 'Backup contains duplicate extra income IDs.' };
+    }
+
+    if (properties) {
+      const propertyIds = new Set(properties.map((property) => property.id));
+      const orphanBooking = bookings.find((booking) => !propertyIds.has(booking.propertyId));
+      const orphanExpense = expenses.find((expense) => !propertyIds.has(expense.propertyId));
+      const orphanIncome = extraIncomes.find((income) => !propertyIds.has(income.propertyId));
+
+      if (orphanBooking || orphanExpense || orphanIncome) {
+        return {
+          isValid: false,
+          error: 'Backup contains records linked to a property that is not included in the backup.',
+        };
+      }
+    }
+
     const normalized: BackupData = {
       version: typeof object.version === 'number' ? object.version : 1,
       exportedAt:
         typeof object.exportedAt === 'string' ? object.exportedAt : new Date().toISOString(),
       containsPii: object.containsPii === true,
-      taxConfiguration: object.taxConfiguration as unknown as TaxConfiguration,
-      properties: Array.isArray(object.properties)
-        ? (object.properties as PropertyConfig[])
-        : undefined,
-      bookings: object.bookings as Booking[],
-      expenses: object.expenses as Expense[],
-      extraIncomes: object.extraIncomes as ExtraIncome[],
+      taxConfiguration: {
+        ...DEFAULT_TAX_CONFIG,
+        ...(object.taxConfiguration as Partial<TaxConfiguration>),
+      },
+      properties,
+      bookings,
+      expenses,
+      extraIncomes,
       userPreferences: isObject(object.userPreferences)
         ? ({ ...DEFAULT_USER_PREFERENCES, ...object.userPreferences } as UserPreferences)
-        : DEFAULT_USER_PREFERENCES,
+        : { ...DEFAULT_USER_PREFERENCES },
       activityHistory: Array.isArray(object.activityHistory)
         ? (object.activityHistory as ActivityRecord[])
         : [],
