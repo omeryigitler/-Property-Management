@@ -21,7 +21,11 @@ import { NativeSelectEnhancer } from './common/NativeSelectEnhancer';
 
 export function AppShell() {
   const mainViewMode = useDashboardStore((state) => state.mainViewMode);
-  usePropertyStore((state) => state.properties);
+  const propertyCatalogKey = usePropertyStore((state) =>
+    state.properties
+      .map((property) => `${property.id}:${property.name}:${property.locationId}:${property.active}`)
+      .join('|')
+  );
   const isReportsView = mainViewMode === 'analytics';
 
   return (
@@ -33,7 +37,7 @@ export function AppShell() {
         <TaxConfigurationGate />
 
         {isReportsView ? (
-          <ReportsDashboard />
+          <ReportsDashboard key={propertyCatalogKey} />
         ) : (
           <PropertyCalendarGrid>
             <FinancialGrid />
