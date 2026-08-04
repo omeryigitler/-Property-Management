@@ -8,7 +8,38 @@ import {
   TaxConfiguration,
   UserPreferences,
 } from '../types';
-import { calculateBookingRevenueAndCommission } from './financialCalculationService';
+import { ALL_PROPERTIES } from '../config/locations';
+import {
+  calculateBookingRevenueAndCommission,
+  calculatePropertyFinancials,
+} from './financialCalculationService';
+import { DEFAULT_USER_PREFERENCES } from './persistenceRepository';
+import { isRentExpense } from '../utils/expenseUtilities';
+
+function csvCell(value: string | number | null | undefined): string {
+  const text = value == null ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadTextFile(content: string, filename: string, type: string): void {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function euros(cents: number | null | undefined): string {
+  return cents == null ? '' : (cents / 100).toFixed(2);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
 export class ExportImportService {
   public static generateBackup(
@@ -49,19 +80,14 @@ export class ExportImportService {
 
   public static downloadJsonBackup(backup: BackupData, filename?: string): void {
     const jsonString = JSON.stringify(backup, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download =
+    downloadTextFile(
+      jsonString,
       filename ||
-      `short_let_backup_${backup.containsPii ? 'FULL_PII' : 'ANONYMIZED'}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+        `short_let_backup_${backup.containsPii ? 'FULL_PII' : 'ANONYMIZED'}_${new Date()
+          .toISOString()
+          .slice(0, 10)}.json`,
+      'application/json'
+    );
   }
 
   public static exportBookingsCsv(bookings: Booking[], includePii: boolean = false): void {
@@ -92,34 +118,33 @@ export class ExportImportService {
       return [
         booking.id,
         booking.propertyId,
-        `"${guest.replace(/"/g, '""')}"`,
+        guest,
         booking.channel,
         booking.checkInDate,
         booking.checkOutDate,
-        (booking.nightlyRateCents / 100).toFixed(2),
-        (booking.cleaningFeeCents / 100).toFixed(2),
-        (booking.discountCents / 100).toFixed(2),
-        (totals.grossBookingRevenueCents / 100).toFixed(2),
+        euros(booking.nightlyRateCents),
+        euros(booking.cleaningFeeCents),
+        euros(booking.discountCents),
+        euros(totals.grossBookingRevenueCents),
         (booking.commissionPercentage || 0).toFixed(1),
-        (totals.otaCommissionCents / 100).toFixed(2),
-        (totals.netBookingRevenueCents / 100).toFixed(2),
+        euros(totals.otaCommissionCents),
+        euros(totals.netBookingRevenueCents),
         booking.status,
         booking.bookingRef || '',
       ];
     });
 
-    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bookings_export_${includePii ? 'pii' : 'no_pii'}_${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((value) => csvCell(value)).join(','))
+      .join('\n');
+
+    downloadTextFile(
+      csvContent,
+      `bookings_export_${includePii ? 'pii' : 'no_pii'}_${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`,
+      'text/csv;charset=utf-8;'
+    );
   }
 }
 
@@ -133,27 +158,138 @@ export function exportFinancialSummaryCsv(
   extraIncomes: ExtraIncome[],
   taxConfig: TaxConfiguration
 ): void {
-  const headers = ['Metric', 'Amount'];
-  const rows = [
-    ['Year', year.toString()],
-    ['Month', month.toString()],
-    ['Total Bookings Count', bookings.length.toString()],
-    ['Total Expenses Count', expenses.length.toString()],
-    ['Total Extra Incomes Count', extraIncomes.length.toString()],
-    ['Accommodation VAT Rate', String(taxConfig.accommodationVatRate ?? '')],
-    ['Income Tax Rate', String(taxConfig.incomeTaxRate ?? '')],
+  const headers = [
+    'Property',
+    'Gross Booking Revenue (€)',
+    'OTA Commission (€)',
+    'Net Booking Revenue (€)',
+    'Extra Income (€)',
+    'Rent (€)',
+    'Other Expenses (€)',
+    'Total Expenses (€)',
+    'Pre-Tax Balance (€)',
+    'Calculated Taxes (€)',
+    'Net Balance (€)',
+    'Status',
   ];
 
-  const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `financial_summary_${year}_${month}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  let totalGross = 0;
+  let totalCommission = 0;
+  let totalNetBooking = 0;
+  let totalExtraIncome = 0;
+  let totalRent = 0;
+  let totalOtherExpenses = 0;
+  let totalExpenses = 0;
+  let totalPreTax = 0;
+  let totalTaxes = 0;
+  let totalNetBalance = 0;
+  let allTaxesConfigured = true;
+
+  const rows = ALL_PROPERTIES.map((property) => {
+    const financials = calculatePropertyFinancials(
+      property.id,
+      year,
+      month,
+      bookings,
+      expenses,
+      extraIncomes,
+      taxConfig
+    );
+
+    const periodExpenses = expenses.filter(
+      (expense) =>
+        expense.propertyId === property.id &&
+        expense.year === year &&
+        expense.month === month
+    );
+    const rentCents = periodExpenses
+      .filter(isRentExpense)
+      .reduce((sum, expense) => sum + expense.amountCents, 0);
+    const otherExpensesCents = periodExpenses
+      .filter((expense) => !isRentExpense(expense))
+      .reduce((sum, expense) => sum + expense.amountCents, 0);
+    const preTaxBalanceCents =
+      financials.netBookingIncomeCents +
+      financials.extraIncomeCents -
+      financials.totalExpensesCents;
+
+    totalGross += financials.grossBookingIncomeCents;
+    totalCommission += financials.otaCommissionCents;
+    totalNetBooking += financials.netBookingIncomeCents;
+    totalExtraIncome += financials.extraIncomeCents;
+    totalRent += rentCents;
+    totalOtherExpenses += otherExpensesCents;
+    totalExpenses += financials.totalExpensesCents;
+    totalPreTax += preTaxBalanceCents;
+
+    if (financials.isTaxConfigured) {
+      totalTaxes += financials.calculatedTaxesCents ?? 0;
+      totalNetBalance += financials.netBalanceCents ?? 0;
+    } else {
+      allTaxesConfigured = false;
+    }
+
+    const balance = financials.netBalanceCents ?? preTaxBalanceCents;
+    const status = !financials.isTaxConfigured
+      ? 'Tax configuration required'
+      : balance > 0
+        ? 'Profitable'
+        : balance < 0
+          ? 'Loss'
+          : 'Break-even';
+
+    return [
+      property.name,
+      euros(financials.grossBookingIncomeCents),
+      euros(financials.otaCommissionCents),
+      euros(financials.netBookingIncomeCents),
+      euros(financials.extraIncomeCents),
+      euros(rentCents),
+      euros(otherExpensesCents),
+      euros(financials.totalExpensesCents),
+      euros(preTaxBalanceCents),
+      euros(financials.calculatedTaxesCents),
+      euros(financials.netBalanceCents),
+      status,
+    ];
+  });
+
+  rows.push([
+    'PORTFOLIO TOTAL',
+    euros(totalGross),
+    euros(totalCommission),
+    euros(totalNetBooking),
+    euros(totalExtraIncome),
+    euros(totalRent),
+    euros(totalOtherExpenses),
+    euros(totalExpenses),
+    euros(totalPreTax),
+    allTaxesConfigured ? euros(totalTaxes) : '',
+    allTaxesConfigured ? euros(totalNetBalance) : '',
+    allTaxesConfigured
+      ? totalNetBalance > 0
+        ? 'Profitable'
+        : totalNetBalance < 0
+          ? 'Loss'
+          : 'Break-even'
+      : 'Tax configuration required',
+  ]);
+
+  const metadataRows = [
+    ['Report Year', year],
+    ['Report Month', month],
+    [],
+  ];
+
+  const csvContent = [...metadataRows, headers, ...rows]
+    .map((row) => row.map((value) => csvCell(value)).join(','))
+    .join('\n');
+
+  downloadTextFile(
+    csvContent,
+    `financial_summary_${year}_${String(month).padStart(2, '0')}.csv`,
+    'text/csv;charset=utf-8;'
+  );
 }
 
 export function exportJsonBackup(
@@ -184,18 +320,53 @@ export function validateBackupJson(
 ): { isValid: boolean; data?: BackupData; error?: string } {
   try {
     const object = typeof jsonInput === 'string' ? JSON.parse(jsonInput) : jsonInput;
-    if (
-      object &&
-      typeof object === 'object' &&
-      Array.isArray((object as BackupData).bookings) &&
-      (object as BackupData).taxConfiguration
-    ) {
-      return { isValid: true, data: object as BackupData };
+
+    if (!isObject(object)) {
+      return { isValid: false, error: 'Backup file must contain a JSON object.' };
     }
-    return {
-      isValid: false,
-      error: 'File is missing the required bookings array or tax configuration.',
+    if (!isObject(object.taxConfiguration)) {
+      return { isValid: false, error: 'Backup is missing a valid tax configuration.' };
+    }
+    if (!Array.isArray(object.bookings)) {
+      return { isValid: false, error: 'Backup is missing the bookings array.' };
+    }
+    if (!Array.isArray(object.expenses)) {
+      return { isValid: false, error: 'Backup is missing the expenses array.' };
+    }
+    if (!Array.isArray(object.extraIncomes)) {
+      return { isValid: false, error: 'Backup is missing the extra income array.' };
+    }
+    if (object.properties != null && !Array.isArray(object.properties)) {
+      return { isValid: false, error: 'Backup contains an invalid properties list.' };
+    }
+    if (object.activityHistory != null && !Array.isArray(object.activityHistory)) {
+      return { isValid: false, error: 'Backup contains an invalid activity history.' };
+    }
+    if (object.userPreferences != null && !isObject(object.userPreferences)) {
+      return { isValid: false, error: 'Backup contains invalid user preferences.' };
+    }
+
+    const normalized: BackupData = {
+      version: typeof object.version === 'number' ? object.version : 1,
+      exportedAt:
+        typeof object.exportedAt === 'string' ? object.exportedAt : new Date().toISOString(),
+      containsPii: object.containsPii === true,
+      taxConfiguration: object.taxConfiguration as unknown as TaxConfiguration,
+      properties: Array.isArray(object.properties)
+        ? (object.properties as PropertyConfig[])
+        : undefined,
+      bookings: object.bookings as Booking[],
+      expenses: object.expenses as Expense[],
+      extraIncomes: object.extraIncomes as ExtraIncome[],
+      userPreferences: isObject(object.userPreferences)
+        ? ({ ...DEFAULT_USER_PREFERENCES, ...object.userPreferences } as UserPreferences)
+        : DEFAULT_USER_PREFERENCES,
+      activityHistory: Array.isArray(object.activityHistory)
+        ? (object.activityHistory as ActivityRecord[])
+        : [],
     };
+
+    return { isValid: true, data: normalized };
   } catch {
     return { isValid: false, error: 'Failed to parse JSON file format.' };
   }
