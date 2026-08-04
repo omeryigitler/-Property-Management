@@ -1,4 +1,4 @@
-import { PersistedState, Booking } from '../types';
+import { Booking, PersistedState } from '../types';
 import { encryptionService } from './encryptionService';
 import {
   DEFAULT_TAX_CONFIG,
@@ -16,6 +16,10 @@ const FALLBACK_STORAGE_KEY = 'short_let_fallback_state';
 const DASHBOARD_STORAGE_KEY = 'short_let_dashboard_v1';
 const CRYPTO_STORAGE_KEY = 'short_let_crypto_key_v1';
 const REDACTED_GUEST_NAME = '[Encrypted guest data unavailable]';
+
+function cloneState(state: PersistedState): PersistedState {
+  return JSON.parse(JSON.stringify(state)) as PersistedState;
+}
 
 function createPrivateFallbackState(state: PersistedState): PersistedState {
   return {
@@ -52,6 +56,7 @@ function normalizePersistedState(state: PersistedState): PersistedState {
 
 class StorageService {
   private dbPromise: Promise<IDBDatabase> | null = null;
+  private saveQueue: Promise<void> = Promise.resolve();
 
   private getDB(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
@@ -65,7 +70,6 @@ class StorageService {
           db.createObjectStore(STORE_NAME);
         }
       };
-
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
       request.onblocked = () => reject(new Error('IndexedDB open request was blocked.'));
@@ -74,7 +78,7 @@ class StorageService {
     return this.dbPromise;
   }
 
-  public async saveState(state: PersistedState): Promise<void> {
+  private async writeState(state: PersistedState): Promise<void> {
     try {
       const db = await this.getDB();
       const encryptedBookings: Booking[] = await Promise.all(
@@ -93,10 +97,11 @@ class StorageService {
           identificationDetails: booking.identificationDetails
             ? await encryptionService.encrypt(booking.identificationDetails)
             : undefined,
-          notes: booking.notes ? await encryptionService.encrypt(booking.notes) : undefined,
+          notes: booking.notes
+            ? await encryptionService.encrypt(booking.notes)
+            : undefined,
         }))
       );
-
       const stateToSave: PersistedState = {
         ...state,
         bookings: encryptedBookings,
@@ -120,10 +125,20 @@ class StorageService {
     }
   }
 
+  public saveState(state: PersistedState): Promise<void> {
+    const snapshot = cloneState(state);
+    this.saveQueue = this.saveQueue
+      .catch(() => undefined)
+      .then(() => this.writeState(snapshot));
+    return this.saveQueue;
+  }
+
   public async loadState(): Promise<PersistedState> {
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1;
+
+    await this.saveQueue.catch(() => undefined);
 
     try {
       const db = await this.getDB();
@@ -166,14 +181,16 @@ class StorageService {
       console.warn('Failed to load state from IndexedDB:', error);
     }
 
-    try {
-      const fallback = localStorage.getItem(FALLBACK_STORAGE_KEY);
-      if (fallback) {
-        return normalizePersistedState(JSON.parse(fallback) as PersistedState);
+    for (const storageKey of [FALLBACK_STORAGE_KEY, DASHBOARD_STORAGE_KEY]) {
+      try {
+        const fallback = localStorage.getItem(storageKey);
+        if (fallback) {
+          return normalizePersistedState(JSON.parse(fallback) as PersistedState);
+        }
+      } catch (error) {
+        console.warn(`Failed to load local state from ${storageKey}:`, error);
+        localStorage.removeItem(storageKey);
       }
-    } catch (error) {
-      console.warn('Failed to load the local fallback state:', error);
-      localStorage.removeItem(FALLBACK_STORAGE_KEY);
     }
 
     const initialState: PersistedState = {
@@ -213,6 +230,8 @@ class StorageService {
   }
 
   public async clearAll(): Promise<void> {
+    await this.saveQueue.catch(() => undefined);
+
     try {
       const db = await this.getDB();
       await new Promise<void>((resolve, reject) => {
