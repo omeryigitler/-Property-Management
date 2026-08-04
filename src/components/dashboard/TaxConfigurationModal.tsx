@@ -11,9 +11,12 @@ import { useDashboardStore } from '../../store/useDashboardStore';
 import { CustomSelect } from '../common/CustomSelect';
 import { centsToEuros, eurosToCents } from '../../utils/currency';
 import {
+  CommissionBasis,
   EcoTaxBasis,
+  FixedCommissionAllocationRule,
   IncomeTaxBasis,
   TaxTreatment,
+  VatBasis,
   VatInclusivity,
 } from '../../types';
 
@@ -30,8 +33,13 @@ export function TaxConfigurationModal() {
   const [incomeTax, setIncomeTax] = useState('');
   const [ecoTax, setEcoTax] = useState('');
   const [vatInclusivity, setVatInclusivity] = useState<VatInclusivity>('inclusive');
+  const [vatBasis, setVatBasis] = useState<VatBasis>('gross');
   const [ecoTaxBasis, setEcoTaxBasis] = useState<EcoTaxBasis>('per_occupied_night');
   const [incomeTaxBasis, setIncomeTaxBasis] = useState<IncomeTaxBasis>('taxable_profit');
+  const [commissionBasis, setCommissionBasis] =
+    useState<CommissionBasis>('accommodation_only');
+  const [fixedCommissionAllocationRule, setFixedCommissionAllocationRule] =
+    useState<FixedCommissionAllocationRule>('check_in_date');
   const [extraIncomeTaxTreatment, setExtraIncomeTaxTreatment] =
     useState<TaxTreatment>('standard_vat');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -39,6 +47,7 @@ export function TaxConfigurationModal() {
 
   useEffect(() => {
     if (activeModal !== 'tax_config') return;
+
     setAccommodationVat(
       taxConfig.accommodationVatRate != null
         ? taxConfig.accommodationVatRate.toString()
@@ -56,8 +65,19 @@ export function TaxConfigurationModal() {
         : ''
     );
     setVatInclusivity(taxConfig.vatInclusivity || 'inclusive');
+    setVatBasis(
+      taxConfig.vatBasis === 'net_after_commission' ? 'net_after_commission' : 'gross'
+    );
     setEcoTaxBasis(taxConfig.ecoTaxBasis || 'per_occupied_night');
     setIncomeTaxBasis(taxConfig.incomeTaxBasis || 'taxable_profit');
+    setCommissionBasis(
+      taxConfig.commissionBasis === 'manual'
+        ? 'accommodation_only'
+        : taxConfig.commissionBasis || 'accommodation_only'
+    );
+    setFixedCommissionAllocationRule(
+      taxConfig.fixedCommissionAllocationRule || 'check_in_date'
+    );
     setExtraIncomeTaxTreatment(
       taxConfig.defaultExtraIncomeTaxTreatment || 'standard_vat'
     );
@@ -117,8 +137,11 @@ export function TaxConfigurationModal() {
       incomeTaxRate: parsedIncomeTax,
       ecoContributionCents: eurosToCents(parsedEcoTax),
       vatInclusivity,
+      vatBasis,
       ecoTaxBasis,
       incomeTaxBasis,
+      commissionBasis,
+      fixedCommissionAllocationRule,
       defaultExtraIncomeTaxTreatment: extraIncomeTaxTreatment,
     });
     handleClose();
@@ -165,7 +188,7 @@ export function TaxConfigurationModal() {
                 Tax & Financial Settings
               </h3>
               <p className="text-[11px] text-slate-400">
-                Configure rates used by net balance calculations.
+                Configure rates and calculation bases used by the ledger and reports.
               </p>
             </div>
           </div>
@@ -173,6 +196,7 @@ export function TaxConfigurationModal() {
             type="button"
             onClick={handleClose}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+            aria-label={returnToSettings ? 'Back to settings' : 'Close tax settings'}
           >
             {returnToSettings ? <ArrowLeft className="h-5 w-5" /> : <X className="h-5 w-5" />}
           </button>
@@ -235,7 +259,7 @@ export function TaxConfigurationModal() {
               onClick={() => setShowAdvanced((current) => !current)}
               className="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-300 hover:bg-slate-900/80"
             >
-              <span>Advanced Tax Rules</span>
+              <span>Advanced Tax & Commission Rules</span>
               {showAdvanced ? (
                 <ChevronUp className="h-4 w-4" />
               ) : (
@@ -255,6 +279,50 @@ export function TaxConfigurationModal() {
                   onChange={(value) => setVatInclusivity(value as VatInclusivity)}
                 />
                 <CustomSelect
+                  label="VAT Booking Base"
+                  options={[
+                    { value: 'gross', label: 'Gross Booking Revenue' },
+                    { value: 'net_after_commission', label: 'After OTA Commission' },
+                  ]}
+                  value={vatBasis}
+                  onChange={(value) => setVatBasis(value as VatBasis)}
+                />
+                <CustomSelect
+                  label="Income Tax Basis"
+                  options={[
+                    { value: 'taxable_profit', label: 'Taxable Profit' },
+                    { value: 'net_after_commission', label: 'Revenue After Commission' },
+                    { value: 'net_after_vat', label: 'Revenue After VAT' },
+                    { value: 'gross_revenue', label: 'Gross Revenue' },
+                  ]}
+                  value={incomeTaxBasis}
+                  onChange={(value) => setIncomeTaxBasis(value as IncomeTaxBasis)}
+                />
+                <CustomSelect
+                  label="Percentage Commission Base"
+                  options={[
+                    { value: 'accommodation_only', label: 'Accommodation Only' },
+                    { value: 'accommodation_plus_fees', label: 'Accommodation + Fees' },
+                    { value: 'gross_after_discounts', label: 'Gross After Discounts' },
+                  ]}
+                  value={commissionBasis}
+                  onChange={(value) => setCommissionBasis(value as CommissionBasis)}
+                />
+                <CustomSelect
+                  label="Fixed Commission Allocation"
+                  options={[
+                    { value: 'check_in_date', label: 'Check-In Month' },
+                    { value: 'proportional_nights', label: 'Proportional by Nights' },
+                    { value: 'payout_date', label: 'Checkout / Payout Month' },
+                  ]}
+                  value={fixedCommissionAllocationRule}
+                  onChange={(value) =>
+                    setFixedCommissionAllocationRule(
+                      value as FixedCommissionAllocationRule
+                    )
+                  }
+                />
+                <CustomSelect
                   label="Eco Contribution Basis"
                   options={[
                     { value: 'per_occupied_night', label: 'Per Occupied Night' },
@@ -263,16 +331,6 @@ export function TaxConfigurationModal() {
                   ]}
                   value={ecoTaxBasis}
                   onChange={(value) => setEcoTaxBasis(value as EcoTaxBasis)}
-                />
-                <CustomSelect
-                  label="Income Tax Basis"
-                  options={[
-                    { value: 'taxable_profit', label: 'Taxable Profit' },
-                    { value: 'net_after_vat', label: 'Revenue After VAT' },
-                    { value: 'gross_revenue', label: 'Gross Revenue' },
-                  ]}
-                  value={incomeTaxBasis}
-                  onChange={(value) => setIncomeTaxBasis(value as IncomeTaxBasis)}
                 />
                 <CustomSelect
                   label="Default Extra Income Tax"
@@ -289,7 +347,12 @@ export function TaxConfigurationModal() {
           </section>
 
           <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 text-xs text-slate-400">
-            These values are operational estimates. Confirm official tax treatment with a qualified Malta tax professional.
+            <p>
+              VAT uses the selected booking base. Income tax uses its own basis and never adds OTA commission back into net balance.
+            </p>
+            <p className="mt-2">
+              These values are operational estimates. Confirm official tax treatment with a qualified Malta tax professional.
+            </p>
           </div>
 
           <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-slate-800 bg-slate-900/95 py-3 backdrop-blur sm:flex-row sm:justify-end">
