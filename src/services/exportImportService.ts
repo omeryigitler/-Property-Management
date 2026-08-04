@@ -1,12 +1,19 @@
-import { BackupData, Booking, Expense, ExtraIncome, TaxConfiguration, UserPreferences, ActivityRecord } from '../types';
-import { maskGuestName, maskContact } from '../utils/privacy';
+import {
+  ActivityRecord,
+  BackupData,
+  Booking,
+  Expense,
+  ExtraIncome,
+  PropertyConfig,
+  TaxConfiguration,
+  UserPreferences,
+} from '../types';
+import { calculateBookingRevenueAndCommission } from './financialCalculationService';
 
 export class ExportImportService {
-  /**
-   * Generates JSON backup payload.
-   */
   public static generateBackup(
     taxConfiguration: TaxConfiguration,
+    properties: PropertyConfig[],
     bookings: Booking[],
     expenses: Expense[],
     extraIncomes: ExtraIncome[],
@@ -16,9 +23,9 @@ export class ExportImportService {
   ): BackupData {
     const safeBookings = includePii
       ? bookings
-      : bookings.map((b, idx) => ({
-          ...b,
-          guestName: `Guest ${String.fromCharCode(65 + (idx % 26))}${idx + 1}`,
+      : bookings.map((booking, index) => ({
+          ...booking,
+          guestName: `Guest ${String.fromCharCode(65 + (index % 26))}${index + 1}`,
           contactEmail: undefined,
           contactPhone: undefined,
           address: undefined,
@@ -31,6 +38,7 @@ export class ExportImportService {
       exportedAt: new Date().toISOString(),
       containsPii: includePii,
       taxConfiguration,
+      properties,
       bookings: safeBookings,
       expenses,
       extraIncomes,
@@ -39,25 +47,23 @@ export class ExportImportService {
     };
   }
 
-  /**
-   * Triggers browser download of JSON backup.
-   */
   public static downloadJsonBackup(backup: BackupData, filename?: string): void {
-    const jsonStr = JSON.stringify(backup, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const jsonString = JSON.stringify(backup, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = filename || `short_let_backup_${backup.containsPii ? 'FULL_PII' : 'ANONYMIZED'}_${new Date().toISOString().slice(0, 10)}.json`;
+    link.download =
+      filename ||
+      `short_let_backup_${backup.containsPii ? 'FULL_PII' : 'ANONYMIZED'}_${new Date()
+        .toISOString()
+        .slice(0, 10)}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
 
-  /**
-   * Generates CSV export for Bookings. Guest details stripped by default.
-   */
   public static exportBookingsCsv(bookings: Booking[], includePii: boolean = false): void {
     const headers = [
       'Booking ID',
@@ -77,38 +83,39 @@ export class ExportImportService {
       'Booking Ref',
     ];
 
-    const rows = bookings.map((b, idx) => {
-      const gross = (b.nightlyRateCents * 5 + b.cleaningFeeCents - b.discountCents) / 100;
-      const comm = (gross * (b.commissionPercentage || 0)) / 100;
-      const net = gross - comm;
-
-      const guest = includePii ? b.guestName : `Guest ${String.fromCharCode(65 + (idx % 26))}${idx + 1}`;
+    const rows = bookings.map((booking, index) => {
+      const totals = calculateBookingRevenueAndCommission(booking);
+      const guest = includePii
+        ? booking.guestName
+        : `Guest ${String.fromCharCode(65 + (index % 26))}${index + 1}`;
 
       return [
-        b.id,
-        b.propertyId,
+        booking.id,
+        booking.propertyId,
         `"${guest.replace(/"/g, '""')}"`,
-        b.channel,
-        b.checkInDate,
-        b.checkOutDate,
-        (b.nightlyRateCents / 100).toFixed(2),
-        (b.cleaningFeeCents / 100).toFixed(2),
-        (b.discountCents / 100).toFixed(2),
-        gross.toFixed(2),
-        (b.commissionPercentage || 0).toFixed(1),
-        comm.toFixed(2),
-        net.toFixed(2),
-        b.status,
-        b.bookingRef || '',
+        booking.channel,
+        booking.checkInDate,
+        booking.checkOutDate,
+        (booking.nightlyRateCents / 100).toFixed(2),
+        (booking.cleaningFeeCents / 100).toFixed(2),
+        (booking.discountCents / 100).toFixed(2),
+        (totals.grossBookingRevenueCents / 100).toFixed(2),
+        (booking.commissionPercentage || 0).toFixed(1),
+        (totals.otaCommissionCents / 100).toFixed(2),
+        (totals.netBookingRevenueCents / 100).toFixed(2),
+        booking.status,
+        booking.bookingRef || '',
       ];
     });
 
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `bookings_export_${includePii ? 'pii' : 'no_pii'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `bookings_export_${includePii ? 'pii' : 'no_pii'}_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -126,16 +133,18 @@ export function exportFinancialSummaryCsv(
   extraIncomes: ExtraIncome[],
   taxConfig: TaxConfiguration
 ): void {
-  const headers = ['Metric', 'Amount (€)'];
+  const headers = ['Metric', 'Amount'];
   const rows = [
     ['Year', year.toString()],
     ['Month', month.toString()],
     ['Total Bookings Count', bookings.length.toString()],
     ['Total Expenses Count', expenses.length.toString()],
     ['Total Extra Incomes Count', extraIncomes.length.toString()],
+    ['Accommodation VAT Rate', String(taxConfig.accommodationVatRate ?? '')],
+    ['Income Tax Rate', String(taxConfig.incomeTaxRate ?? '')],
   ];
 
-  const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -149,6 +158,7 @@ export function exportFinancialSummaryCsv(
 
 export function exportJsonBackup(
   taxConfiguration: TaxConfiguration,
+  properties: PropertyConfig[],
   bookings: Booking[],
   expenses: Expense[],
   extraIncomes: ExtraIncome[],
@@ -158,6 +168,7 @@ export function exportJsonBackup(
 ): void {
   const backup = ExportImportService.generateBackup(
     taxConfiguration,
+    properties,
     bookings,
     expenses,
     extraIncomes,
@@ -168,20 +179,24 @@ export function exportJsonBackup(
   ExportImportService.downloadJsonBackup(backup);
 }
 
-export function validateBackupJson(jsonInput: string | any): { isValid: boolean; data?: BackupData; error?: string } {
+export function validateBackupJson(
+  jsonInput: string | unknown
+): { isValid: boolean; data?: BackupData; error?: string } {
   try {
-    const obj = typeof jsonInput === 'string' ? JSON.parse(jsonInput) : jsonInput;
+    const object = typeof jsonInput === 'string' ? JSON.parse(jsonInput) : jsonInput;
     if (
-      obj &&
-      typeof obj === 'object' &&
-      Array.isArray(obj.bookings) &&
-      obj.taxConfiguration
+      object &&
+      typeof object === 'object' &&
+      Array.isArray((object as BackupData).bookings) &&
+      (object as BackupData).taxConfiguration
     ) {
-      return { isValid: true, data: obj as BackupData };
+      return { isValid: true, data: object as BackupData };
     }
-    return { isValid: false, error: 'File is missing required bookings array or tax configuration.' };
-  } catch (e) {
+    return {
+      isValid: false,
+      error: 'File is missing the required bookings array or tax configuration.',
+    };
+  } catch {
     return { isValid: false, error: 'Failed to parse JSON file format.' };
   }
 }
-
