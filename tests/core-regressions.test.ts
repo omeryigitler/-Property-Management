@@ -60,6 +60,26 @@ const zeroTaxConfig: TaxConfiguration = {
   ecoContributionCents: 0,
 };
 
+function taxInput(config: TaxConfiguration) {
+  return {
+    bookingIncomeCents: 10_000,
+    grossBookingIncomeCents: 10_000,
+    netBookingIncomeCents: 10_000,
+    extraIncomeCents: 0,
+    extraIncomeByTreatment: {
+      accommodation_vat: 0,
+      standard_vat: 0,
+      vat_exempt: 0,
+    },
+    totalExpensesCents: 0,
+    deductibleExpensesCents: 0,
+    occupiedNightsCount: 1,
+    bookingCount: 1,
+    totalGuestNightsCount: 2,
+    config,
+  };
+}
+
 test('cross-month bookings allocate only occupied nights to each month', () => {
   const nights = getBookingMonthlyAllocatedNights(
     booking('cross-month', '1-the-olive', '2026-01-30', '2026-02-02', 10_000),
@@ -121,7 +141,6 @@ test('reports keep selected-property and all-property scopes separate', () => {
       propertyId: '1-the-olive',
     }
   );
-
   const portfolio = calculateReportSummary(
     bookings,
     expenses,
@@ -141,7 +160,6 @@ test('reports keep selected-property and all-property scopes separate', () => {
   assert.equal(selected.totalExpensesCents, 5_000);
   assert.equal(selected.occupiedNights, 2);
   assert.equal(selected.availableNights, 31);
-
   assert.equal(portfolio.grossBookingIncomeCents, 50_000);
   assert.equal(portfolio.occupiedNights, 4);
   assert.ok(portfolio.availableNights > selected.availableNights);
@@ -156,8 +174,7 @@ test('net-after-commission income tax uses net booking revenue independently of 
   };
 
   const result = calculatePropertyTaxes({
-    bookingIncomeCents: 10_000,
-    grossBookingIncomeCents: 10_000,
+    ...taxInput(config),
     netBookingIncomeCents: 8_500,
     extraIncomeCents: 500,
     extraIncomeByTreatment: {
@@ -165,16 +182,31 @@ test('net-after-commission income tax uses net booking revenue independently of 
       standard_vat: 0,
       vat_exempt: 500,
     },
-    totalExpensesCents: 0,
-    deductibleExpensesCents: 0,
-    occupiedNightsCount: 1,
-    bookingCount: 1,
-    totalGuestNightsCount: 2,
-    config,
   });
 
   assert.equal(result.incomeTaxCents, 900);
   assert.equal(result.netBalanceCents, 8_100);
+});
+
+test('VAT-exclusive liability is collected on top and is not deducted twice', () => {
+  const exclusiveConfig: TaxConfiguration = {
+    ...zeroTaxConfig,
+    accommodationVatRate: 10,
+    vatInclusivity: 'exclusive',
+  };
+  const inclusiveConfig: TaxConfiguration = {
+    ...exclusiveConfig,
+    vatInclusivity: 'inclusive',
+  };
+
+  const exclusive = calculatePropertyTaxes(taxInput(exclusiveConfig));
+  const inclusive = calculatePropertyTaxes(taxInput(inclusiveConfig));
+
+  assert.equal(exclusive.accommodationVatCents, 1_000);
+  assert.equal(exclusive.calculatedTaxesCents, 1_000);
+  assert.equal(exclusive.netBalanceCents, 10_000);
+  assert.equal(inclusive.accommodationVatCents, 909);
+  assert.equal(inclusive.netBalanceCents, 9_091);
 });
 
 test('property financials do not add OTA commission back into net balance', () => {
