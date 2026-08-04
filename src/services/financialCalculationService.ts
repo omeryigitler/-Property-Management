@@ -105,8 +105,19 @@ function getCommissionBasisCents(
     : accommodationRevenueCents;
 }
 
+function getAccommodationBeforeDiscountCents(
+  booking: Booking,
+  nightsCount: number
+): number {
+  if (booking.accommodationTotalCents != null) {
+    return nonNegativeInteger(booking.accommodationTotalCents);
+  }
+  return nonNegativeInteger(booking.nightlyRateCents) * nightsCount;
+}
+
 /**
  * Single source of truth for total booking revenue and OTA commission.
+ * Exact accommodation totals take precedence when the total-price input was used.
  */
 export function calculateBookingRevenueAndCommission(
   booking: Booking,
@@ -138,8 +149,8 @@ export function calculateBookingRevenueAndCommission(
     };
   }
 
-  const nightlyRateCents = nonNegativeInteger(booking.nightlyRateCents);
-  const accommodationBeforeDiscountCents = nightlyRateCents * nightsCount;
+  const accommodationBeforeDiscountCents =
+    getAccommodationBeforeDiscountCents(booking, nightsCount);
   const discountCents = Math.min(
     accommodationBeforeDiscountCents,
     nonNegativeInteger(booking.discountCents)
@@ -190,8 +201,8 @@ export interface MonthlyAllocatedNight {
 
 /**
  * Allocates every booking amount to occupied nights once. Cleaning is assigned
- * to the check-in night, discount is distributed across accommodation nights,
- * and commission follows the configured basis and fixed-allocation rule.
+ * to the check-in night, accommodation/discount is distributed without losing
+ * cents, and commission follows the configured basis and allocation rule.
  */
 export function getBookingMonthlyAllocatedNights(
   booking: Booking,
@@ -222,17 +233,19 @@ export function getBookingMonthlyAllocatedNights(
     commissionBasis
   );
 
-  const nightlyRateCents = nonNegativeInteger(booking.nightlyRateCents);
-  const accommodationBeforeDiscountCents = nightlyRateCents * totalNights;
+  const accommodationBeforeDiscountCents =
+    getAccommodationBeforeDiscountCents(booking, totalNights);
   const discountCents = Math.min(
     accommodationBeforeDiscountCents,
     nonNegativeInteger(booking.discountCents)
   );
-  const discountByNight = distributeEvenly(discountCents, totalNights);
-  const cleaningFeeCents = nonNegativeInteger(booking.cleaningFeeCents);
-  const accommodationByNight = discountByNight.map((nightDiscount) =>
-    Math.max(0, nightlyRateCents - nightDiscount)
+  const netAccommodationTotalCents =
+    accommodationBeforeDiscountCents - discountCents;
+  const accommodationByNight = distributeEvenly(
+    netAccommodationTotalCents,
+    totalNights
   );
+  const cleaningFeeCents = nonNegativeInteger(booking.cleaningFeeCents);
   const grossByNight = accommodationByNight.map(
     (accommodationRevenue, index) =>
       accommodationRevenue + (index === 0 ? cleaningFeeCents : 0)
