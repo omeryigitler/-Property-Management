@@ -138,8 +138,20 @@ export function calculatePropertyTaxes(input: CalculateTaxInput): TaxCalculation
   const incomeTaxCents = Math.round(taxableBaseCents * incomeRate);
   const calculatedTaxesCents =
     accommodationVatCents + standardVatCents + ecoContributionCents + incomeTaxCents;
+
+  // Inclusive VAT is contained in the entered revenue and reduces the owner's proceeds.
+  // Exclusive VAT is collected on top of the entered revenue, so subtracting it again here
+  // would double-count the liability.
+  const vatCashImpactCents =
+    config.vatInclusivity === 'inclusive'
+      ? accommodationVatCents + standardVatCents
+      : 0;
   const netBalanceCents =
-    netAfterCommissionCents - totalExpensesCents - calculatedTaxesCents;
+    netAfterCommissionCents -
+    totalExpensesCents -
+    vatCashImpactCents -
+    ecoContributionCents -
+    incomeTaxCents;
 
   return {
     accommodationVatCents,
