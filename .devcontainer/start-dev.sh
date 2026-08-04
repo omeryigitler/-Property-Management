@@ -8,7 +8,7 @@ PORT="3000"
 
 cd "$ROOT_DIR"
 
-echo "[Property Management] Building workspace preview..."
+echo "[Property Management] Verifying workspace..."
 
 if command -v lsof >/dev/null 2>&1; then
   LISTENERS="$(lsof -tiTCP:${PORT} -sTCP:LISTEN 2>/dev/null || true)"
@@ -34,7 +34,7 @@ fi
 
 rm -f "$LOG_FILE"
 
-npm run build
+npm run verify
 
 nohup npm run serve:workspace >"$LOG_FILE" 2>&1 </dev/null &
 SERVER_PID=$!
@@ -61,7 +61,7 @@ for _ in $(seq 1 30); do
       BROWSE_URL="https://${CODESPACE_NAME}-${PORT}.app.github.dev"
     fi
 
-    echo "[Property Management] Workspace ready: http://localhost:${PORT}"
+    echo "[Property Management] Verified workspace ready: http://localhost:${PORT}"
     if [[ -n "$BROWSE_URL" ]]; then
       echo "[Property Management] Open this URL: ${BROWSE_URL}"
       if command -v code >/dev/null 2>&1; then
@@ -74,7 +74,7 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-echo "[Property Management] Workspace preview failed."
+echo "[Property Management] Workspace server failed after verification."
 echo "---------------- Server log ----------------"
 cat "$LOG_FILE" 2>/dev/null || true
 echo "--------------------------------------------"
