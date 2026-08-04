@@ -23,7 +23,7 @@ export class AppErrorBoundary extends React.Component<
 
   public render() {
     if (!this.state.error) {
-      return (this as AppErrorBoundary & { props: React.PropsWithChildren }).props.children;
+      return (this as unknown as { props: React.PropsWithChildren }).props.children;
     }
 
     return (
