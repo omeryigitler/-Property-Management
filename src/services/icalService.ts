@@ -1,11 +1,11 @@
-import { Booking, Channel, SyncStatus, BookingSource } from '../types';
+import { Booking, Channel } from '../types';
 
 export interface ParsedIcalEvent {
   externalUid: string;
   summary: string;
   description?: string;
-  startDateStr: string; // YYYY-MM-DD
-  endDateStr: string; // YYYY-MM-DD
+  startDateStr: string;
+  endDateStr: string;
   status?: string;
 }
 
@@ -26,21 +26,25 @@ export interface IcalImportPreviewReport {
   items: IcalImportPreviewItem[];
 }
 
-/**
- * Parses raw .ics string content into structured events.
- */
 export function parseIcalContent(icsText: string): ParsedIcalEvent[] {
   const events: ParsedIcalEvent[] = [];
   const lines = icsText.split(/\r?\n/);
-
   let currentEvent: Partial<ParsedIcalEvent> | null = null;
 
   for (let line of lines) {
     line = line.trim();
+
     if (line === 'BEGIN:VEVENT') {
       currentEvent = {};
-    } else if (line === 'END:VEVENT') {
-      if (currentEvent && currentEvent.externalUid && currentEvent.startDateStr && currentEvent.endDateStr) {
+      continue;
+    }
+
+    if (line === 'END:VEVENT') {
+      if (
+        currentEvent?.externalUid &&
+        currentEvent.startDateStr &&
+        currentEvent.endDateStr
+      ) {
         events.push({
           externalUid: currentEvent.externalUid,
           summary: currentEvent.summary || 'Reserved',
@@ -51,45 +55,37 @@ export function parseIcalContent(icsText: string): ParsedIcalEvent[] {
         });
       }
       currentEvent = null;
-    } else if (currentEvent) {
-      if (line.startsWith('UID:')) {
-        currentEvent.externalUid = line.substring(4).trim();
-      } else if (line.startsWith('SUMMARY:')) {
-        currentEvent.summary = line.substring(8).trim();
-      } else if (line.startsWith('DESCRIPTION:')) {
-        currentEvent.description = line.substring(12).trim();
-      } else if (line.startsWith('STATUS:')) {
-        currentEvent.status = line.substring(7).trim();
-      } else if (line.startsWith('DTSTART')) {
-        const val = line.split(':')[1];
-        if (val) currentEvent.startDateStr = parseIcalDate(val);
-      } else if (line.startsWith('DTEND')) {
-        const val = line.split(':')[1];
-        if (val) currentEvent.endDateStr = parseIcalDate(val);
-      }
+      continue;
+    }
+
+    if (!currentEvent) continue;
+
+    if (line.startsWith('UID:')) {
+      currentEvent.externalUid = line.substring(4).trim();
+    } else if (line.startsWith('SUMMARY:')) {
+      currentEvent.summary = line.substring(8).trim();
+    } else if (line.startsWith('DESCRIPTION:')) {
+      currentEvent.description = line.substring(12).trim();
+    } else if (line.startsWith('STATUS:')) {
+      currentEvent.status = line.substring(7).trim();
+    } else if (line.startsWith('DTSTART')) {
+      const value = line.split(':')[1];
+      if (value) currentEvent.startDateStr = parseIcalDate(value);
+    } else if (line.startsWith('DTEND')) {
+      const value = line.split(':')[1];
+      if (value) currentEvent.endDateStr = parseIcalDate(value);
     }
   }
 
   return events;
 }
 
-/**
- * Parses iCal date strings like "20260810", "20260810T150000Z" to "YYYY-MM-DD".
- */
 function parseIcalDate(rawDateStr: string): string {
   const clean = rawDateStr.replace(/[^0-9]/g, '');
-  if (clean.length >= 8) {
-    const yyyy = clean.substring(0, 4);
-    const mm = clean.substring(4, 6);
-    const dd = clean.substring(6, 8);
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  return rawDateStr;
+  if (clean.length < 8) return rawDateStr;
+  return `${clean.substring(0, 4)}-${clean.substring(4, 6)}-${clean.substring(6, 8)}`;
 }
 
-/**
- * Previews iCal import against existing bookings to detect duplicates and overlap conflicts.
- */
 export function generateIcalImportPreview(
   parsedEvents: ParsedIcalEvent[],
   targetPropertyId: string,
@@ -97,83 +93,70 @@ export function generateIcalImportPreview(
   existingBookings: Booking[]
 ): IcalImportPreviewReport {
   const items: IcalImportPreviewItem[] = [];
-  let newCount = 0;
-  let dupCount = 0;
-  let conflictCount = 0;
+  let newBookingsCount = 0;
+  let duplicatesCount = 0;
+  let conflictsCount = 0;
 
   const propertyBookings = existingBookings.filter(
-    (b) => b.propertyId === targetPropertyId && b.status !== 'cancelled'
+    (booking) =>
+      booking.propertyId === targetPropertyId && booking.status !== 'cancelled'
   );
 
   for (const event of parsedEvents) {
-    // Check compound key: source + externalUid + propertyId
-    const sourceKey: BookingSource = sourceChannel === 'airbnb' ? 'airbnb_api' : sourceChannel === 'booking_com' ? 'booking_api' : 'ical';
-
-    const duplicateMatch = propertyBookings.find(
-      (b) => b.externalUid === event.externalUid && b.propertyId === targetPropertyId
+    const duplicate = propertyBookings.find(
+      (booking) => booking.externalUid === event.externalUid
     );
 
-    if (duplicateMatch) {
-      if (
-        duplicateMatch.checkInDate === event.startDateStr &&
-        duplicateMatch.checkOutDate === event.endDateStr
-      ) {
-        dupCount++;
-        items.push({
-          event,
-          targetPropertyId,
-          channel: sourceChannel,
-          action: 'skip_duplicate',
-          existingBooking: duplicateMatch,
-        });
-        continue;
-      } else {
-        // Date updated externally
-        items.push({
-          event,
-          targetPropertyId,
-          channel: sourceChannel,
-          action: 'update',
-          existingBooking: duplicateMatch,
-        });
-        continue;
-      }
+    if (duplicate) {
+      const unchanged =
+        duplicate.checkInDate === event.startDateStr &&
+        duplicate.checkOutDate === event.endDateStr;
+
+      if (unchanged) duplicatesCount += 1;
+
+      items.push({
+        event,
+        targetPropertyId,
+        channel: sourceChannel,
+        action: unchanged ? 'skip_duplicate' : 'update',
+        existingBooking: duplicate,
+      });
+      continue;
     }
 
-    // Check for date overlap conflict with existing bookings
-    // DTEND is exclusive! Event [startDateStr, endDateStr)
-    const overlapConflict = propertyBookings.find((b) => {
-      return (
-        event.startDateStr < b.checkOutDate && event.endDateStr > b.checkInDate
-      );
-    });
+    const overlap = propertyBookings.find(
+      (booking) =>
+        event.startDateStr < booking.checkOutDate &&
+        event.endDateStr > booking.checkInDate
+    );
 
-    if (overlapConflict) {
-      conflictCount++;
+    if (overlap) {
+      conflictsCount += 1;
       items.push({
         event,
         targetPropertyId,
         channel: sourceChannel,
         action: 'conflict',
-        existingBooking: overlapConflict,
-        conflictReason: `Overlaps existing booking for ${overlapConflict.guestName} (${overlapConflict.checkInDate} → ${overlapConflict.checkOutDate})`,
+        existingBooking: overlap,
+        conflictReason: `Overlaps existing booking for ${overlap.guestName} (${overlap.checkInDate} → ${overlap.checkOutDate})`,
       });
-    } else {
-      newCount++;
-      items.push({
-        event,
-        targetPropertyId,
-        channel: sourceChannel,
-        action: 'create',
-      });
+      continue;
     }
+
+    newBookingsCount += 1;
+    items.push({
+      event,
+      targetPropertyId,
+      channel: sourceChannel,
+      action: 'create',
+    });
   }
 
   return {
     totalParsed: parsedEvents.length,
-    newBookingsCount: newCount,
-    duplicatesCount: dupCount,
-    conflictsCount: conflictCount,
+    newBookingsCount,
+    duplicatesCount,
+    conflictsCount,
     items,
   };
 }
