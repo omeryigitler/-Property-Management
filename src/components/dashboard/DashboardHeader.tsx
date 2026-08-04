@@ -5,9 +5,6 @@ import {
   CalendarDays,
   Plus,
   Settings,
-  Download,
-  History,
-  ShieldCheck,
   ShieldAlert,
 } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
@@ -16,21 +13,19 @@ import { isTaxConfigured } from '../../utils/taxCalculations';
 import { MonthYearNavigator } from './MonthYearNavigator';
 
 export function DashboardHeader() {
-  const selectedMonth = useDashboardStore((s) => s.selectedMonth);
-  const selectedYear = useDashboardStore((s) => s.selectedYear);
-  const mainViewMode = useDashboardStore((s) => s.mainViewMode);
-  const setMainViewMode = useDashboardStore((s) => s.setMainViewMode);
-  const taxConfiguration = useDashboardStore((s) => s.taxConfiguration);
-  const openModal = useDashboardStore((s) => s.openModal);
+  const selectedMonth = useDashboardStore((state) => state.selectedMonth);
+  const selectedYear = useDashboardStore((state) => state.selectedYear);
+  const mainViewMode = useDashboardStore((state) => state.mainViewMode);
+  const setMainViewMode = useDashboardStore((state) => state.setMainViewMode);
+  const taxConfiguration = useDashboardStore((state) => state.taxConfiguration);
+  const openModal = useDashboardStore((state) => state.openModal);
 
   const taxIsConfigured = isTaxConfigured(taxConfiguration);
   const isReportsView = mainViewMode === 'analytics';
 
   return (
     <header className="w-full bg-slate-950 border-b border-slate-800 p-4 sm:p-5 flex flex-col gap-4 shadow-xl">
-      {/* Top Header Bar */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        {/* Title & Brand */}
         <div className="flex items-center gap-3.5">
           <div className="p-2.5 rounded-xl bg-[#ff3e00]/10 text-[#ff3e00] border border-[#ff3e00]/40 shadow-inner">
             <Building2 className="w-6 h-6" />
@@ -51,7 +46,6 @@ export function DashboardHeader() {
           </div>
         </div>
 
-        {/* Top Control Buttons */}
         <div className="flex flex-wrap items-center gap-2 self-stretch md:self-auto justify-end">
           <div className="grid grid-cols-2 rounded-lg border border-slate-700/80 bg-slate-900 p-1">
             <button
@@ -82,7 +76,6 @@ export function DashboardHeader() {
             </button>
           </div>
 
-          {/* New Booking Button */}
           <button
             type="button"
             onClick={() => openModal('booking_add')}
@@ -92,60 +85,26 @@ export function DashboardHeader() {
             <span>New Booking</span>
           </button>
 
-          {/* Tax Status Badge / Button */}
-          <button
-            type="button"
-            onClick={() => openModal('tax_config')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all ${
-              taxIsConfigured
-                ? 'bg-slate-900 text-emerald-300 border-emerald-800/80 hover:bg-emerald-950/60'
-                : 'bg-amber-950 text-amber-300 border-amber-700/80 hover:bg-amber-900 animate-pulse'
-            }`}
-            title="Configure Tax Parameters"
-          >
-            {taxIsConfigured ? (
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
-            )}
-            <span className="hidden sm:inline">
-              {taxIsConfigured ? 'Taxes Configured' : 'Taxes Required'}
-            </span>
-          </button>
-
-          {/* Export / Import */}
-          <button
-            type="button"
-            onClick={() => openModal('export_import')}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-slate-100 transition-colors"
-            title="Import & Export Hub"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-
-          {/* Activity Log */}
-          <button
-            type="button"
-            onClick={() => openModal('history')}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-slate-100 transition-colors"
-            title="Audit Activity Log"
-          >
-            <History className="w-4 h-4" />
-          </button>
-
-          {/* Settings */}
           <button
             type="button"
             onClick={() => openModal('settings')}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-slate-100 transition-colors"
-            title="Dashboard Settings"
+            className={`relative flex items-center justify-center rounded-lg border p-2 transition-colors ${
+              taxIsConfigured
+                ? 'border-slate-700/80 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+                : 'border-amber-700/80 bg-amber-950 text-amber-300 hover:bg-amber-900'
+            }`}
+            title="Settings & Management"
           >
             <Settings className="w-4 h-4" />
+            {!taxIsConfigured && (
+              <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-slate-950">
+                <ShieldAlert className="h-2.5 w-2.5" />
+              </span>
+            )}
           </button>
         </div>
       </div>
 
-      {/* Month & Year Navigator Bar */}
       <MonthYearNavigator />
     </header>
   );
