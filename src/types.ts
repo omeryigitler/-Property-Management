@@ -8,13 +8,13 @@ export type TurnoverStatus = 'sufficient' | 'tight' | 'insufficient' | 'not_appl
 
 export type BookingSource = 'manual' | 'ical' | 'airbnb_api' | 'booking_api' | 'vrbo_api';
 
-export type SyncStatus = 
-  | 'not_synced' 
-  | 'pending' 
-  | 'synced' 
-  | 'updated' 
-  | 'conflict' 
-  | 'missing_external_record' 
+export type SyncStatus =
+  | 'not_synced'
+  | 'pending'
+  | 'synced'
+  | 'updated'
+  | 'conflict'
+  | 'missing_external_record'
   | 'error';
 
 export interface Booking {
@@ -22,39 +22,33 @@ export interface Booking {
   propertyId: string;
   guestName: string;
   channel: Channel;
-  checkInDate: string; // YYYY-MM-DD
-  checkOutDate: string; // YYYY-MM-DD
-  nightlyRateCents: number; // Integer cents
+  checkInDate: string;
+  checkOutDate: string;
+  nightlyRateCents: number;
   adults: number;
   children: number;
   status: BookingStatus;
-  discountCents: number; // Integer cents
-  cleaningFeeCents: number; // Integer cents
+  discountCents: number;
+  cleaningFeeCents: number;
   notes?: string;
   bookingRef?: string;
   contactEmail?: string;
   contactPhone?: string;
   address?: string;
   identificationDetails?: string;
-
-  // OTA Channel Commission Fields
   commissionMode: CommissionMode;
-  commissionPercentage: number; // e.g. 15 for 15%
-  commissionFixedAmountCents: number; // Cents if fixed
+  commissionPercentage: number;
+  commissionFixedAmountCents: number;
   suggestedCommissionPercentage: number;
   commissionOverrideEnabled: boolean;
   commissionNotes?: string;
-
-  // Operational Times & Turnover
-  checkInTime: string; // e.g. "15:00"
-  checkOutTime: string; // e.g. "10:00"
-  timezone: string; // e.g. "Europe/Malta"
+  checkInTime: string;
+  checkOutTime: string;
+  timezone: string;
   earlyCheckIn: boolean;
   lateCheckOut: boolean;
-  requiredTurnoverMinutes: number; // e.g. 240
+  requiredTurnoverMinutes: number;
   turnoverStatus: TurnoverStatus;
-
-  // External Sync & iCal Fields
   source: BookingSource;
   externalUid?: string;
   externalCalendarId?: string;
@@ -72,55 +66,41 @@ export interface Booking {
   isExternalReadOnly?: boolean;
   externalUrlHash?: string;
   manuallyModifiedAfterSync?: boolean;
-
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type TaxTreatment = 'accommodation_vat' | 'standard_vat' | 'vat_exempt';
-
 export type EcoTaxBasis = 'per_occupied_night' | 'per_booking' | 'per_guest_per_night';
-
 export type IncomeTaxBasis = 'gross_revenue' | 'net_after_vat' | 'net_after_commission' | 'taxable_profit';
-
 export type VatInclusivity = 'inclusive' | 'exclusive';
-
 export type VatBasis = 'gross' | 'net_after_commission' | 'excluding_vat';
-
 export type CommissionBasis = 'accommodation_only' | 'accommodation_plus_fees' | 'gross_after_discounts' | 'manual';
-
 export type FixedCommissionAllocationRule = 'check_in_date' | 'proportional_nights' | 'payout_date';
-
 export type InsufficientTurnoverAction = 'warning_allow' | 'require_confirmation' | 'block_submission';
 
 export interface TaxConfiguration {
-  accommodationVatRate: number | null; // e.g. 7 for 7%
-  standardVatRate: number | null; // e.g. 18 for 18%
-  incomeTaxRate: number | null; // e.g. 15 for 15%
-  ecoContributionCents: number | null; // Cents per night/booking/guest
-  
-  // Advanced Rules
+  accommodationVatRate: number | null;
+  standardVatRate: number | null;
+  incomeTaxRate: number | null;
+  ecoContributionCents: number | null;
   vatInclusivity: VatInclusivity;
   vatBasis: VatBasis;
   ecoTaxBasis: EcoTaxBasis;
   incomeTaxBasis: IncomeTaxBasis;
   defaultExtraIncomeTaxTreatment: TaxTreatment;
-
-  // Commission Basis & Rules
   commissionBasis: CommissionBasis;
   fixedCommissionAllocationRule: FixedCommissionAllocationRule;
-
-  // Default Operational Settings
-  defaultCheckInTime: string; // "15:00"
-  defaultCheckOutTime: string; // "10:00"
-  defaultTurnoverMinutes: number; // 240 (4 hours)
+  defaultCheckInTime: string;
+  defaultCheckOutTime: string;
+  defaultTurnoverMinutes: number;
   insufficientTurnoverAction: InsufficientTurnoverAction;
 }
 
 export interface Expense {
   id: string;
   propertyId: string;
-  month: number; // 1-12
+  month: number;
   year: number;
   label: string;
   amountCents: number;
@@ -135,7 +115,7 @@ export interface Expense {
 export interface ExtraIncome {
   id: string;
   propertyId: string;
-  month: number; // 1-12
+  month: number;
   year: number;
   label: string;
   amountCents: number;
@@ -150,7 +130,7 @@ export type CleaningStatus = 'not_scheduled' | 'scheduled' | 'in_progress' | 'co
 export interface TurnoverTask {
   id: string;
   propertyId: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   departingBookingId?: string;
   incomingBookingId?: string;
   checkOutTime: string;
@@ -166,16 +146,17 @@ export interface TurnoverTask {
 export interface ActivityRecord {
   id: string;
   timestamp: string;
-  action: 
-    | 'booking_created' 
-    | 'booking_updated' 
-    | 'booking_cancelled' 
-    | 'booking_deleted' 
-    | 'expense_saved' 
-    | 'expense_deleted' 
-    | 'extra_income_saved' 
-    | 'extra_income_deleted' 
-    | 'tax_config_updated' 
+  action:
+    | 'booking_created'
+    | 'booking_updated'
+    | 'booking_cancelled'
+    | 'booking_deleted'
+    | 'expense_saved'
+    | 'expense_deleted'
+    | 'extra_income_saved'
+    | 'extra_income_deleted'
+    | 'tax_config_updated'
+    | 'property_saved'
     | 'backup_imported'
     | 'ical_imported'
     | 'pii_anonymized'
@@ -228,6 +209,7 @@ export interface PropertyConfig {
   id: string;
   name: string;
   locationId: string;
+  active: boolean;
 }
 
 export interface UserPreferences {
@@ -246,6 +228,7 @@ export interface BackupData {
   exportedAt: string;
   containsPii: boolean;
   taxConfiguration: TaxConfiguration;
+  properties?: PropertyConfig[];
   bookings: Booking[];
   expenses: Expense[];
   extraIncomes: ExtraIncome[];
@@ -268,11 +251,10 @@ export interface PersistedState {
   selectedMonth: number;
   selectedYear: number;
   taxConfiguration: TaxConfiguration;
+  properties: PropertyConfig[];
   bookings: Booking[];
   expenses: Expense[];
   extraIncomes: ExtraIncome[];
   userPreferences: UserPreferences;
   activityHistory: ActivityRecord[];
 }
-
-
