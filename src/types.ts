@@ -1,13 +1,9 @@
 export type Channel = 'airbnb' | 'booking_com' | 'direct' | 'vrbo';
 
 export type BookingStatus = 'confirmed' | 'provisional' | 'cancelled' | 'checked_in' | 'checked_out';
-
 export type CommissionMode = 'percentage' | 'fixed' | 'none';
-
 export type TurnoverStatus = 'sufficient' | 'tight' | 'insufficient' | 'not_applicable';
-
 export type BookingSource = 'manual' | 'ical' | 'airbnb_api' | 'booking_api' | 'vrbo_api';
-
 export type SyncStatus =
   | 'not_synced'
   | 'pending'
@@ -251,7 +247,7 @@ export interface PersistedState {
   selectedMonth: number;
   selectedYear: number;
   taxConfiguration: TaxConfiguration;
-  properties: PropertyConfig[];
+  properties?: PropertyConfig[];
   bookings: Booking[];
   expenses: Expense[];
   extraIncomes: ExtraIncome[];
