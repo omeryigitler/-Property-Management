@@ -11,6 +11,7 @@ import {
   MainViewMode,
   TurnoverTask,
   Channel,
+  PersistedState,
 } from '../types';
 import {
   PersistenceRepository,
@@ -24,6 +25,9 @@ import { storageService } from '../services/storageService';
 import { validateBookingOverlap } from '../utils/overlapValidation';
 import { ParsedIcalEvent } from '../services/icalService';
 import { DEFAULT_CHANNEL_COMMISSIONS } from '../services/financialCalculationService';
+import { usePropertyStore } from './usePropertyStore';
+
+const LOCAL_REDACTED_GUEST_NAME = '[Encrypted guest data stored in IndexedDB]';
 
 export type ModalType =
   | 'booking_add'
@@ -113,6 +117,17 @@ interface DashboardState {
   _persist: () => void;
 }
 
+interface PersistableDashboardState {
+  selectedMonth: number;
+  selectedYear: number;
+  taxConfiguration: TaxConfiguration;
+  bookings: Booking[];
+  expenses: Expense[];
+  extraIncomes: ExtraIncome[];
+  userPreferences: UserPreferences;
+  activityHistory: ActivityRecord[];
+}
+
 function getChannelDefaults(channel: Channel) {
   return DEFAULT_CHANNEL_COMMISSIONS[channel] ?? {
     percentage: 15,
@@ -124,6 +139,7 @@ function normalizeBooking(booking: Booking): Booking {
   const channelDefaults = getChannelDefaults(booking.channel);
 
   return {
+    ...booking,
     commissionMode: booking.commissionMode ?? channelDefaults.mode,
     commissionPercentage: booking.commissionPercentage ?? channelDefaults.percentage,
     commissionFixedAmountCents: booking.commissionFixedAmountCents ?? 0,
@@ -139,8 +155,40 @@ function normalizeBooking(booking: Booking): Booking {
     turnoverStatus: booking.turnoverStatus ?? 'sufficient',
     source: booking.source ?? 'manual',
     syncStatus: booking.syncStatus ?? 'not_synced',
-    ...booking,
   };
+}
+
+function createPersistedSnapshot(state: PersistableDashboardState): PersistedState {
+  return {
+    version: 1,
+    selectedMonth: state.selectedMonth,
+    selectedYear: state.selectedYear,
+    taxConfiguration: state.taxConfiguration,
+    bookings: state.bookings,
+    expenses: state.expenses,
+    extraIncomes: state.extraIncomes,
+    userPreferences: state.userPreferences,
+    activityHistory: state.activityHistory,
+  };
+}
+
+function redactLocalSnapshot(state: PersistedState): PersistedState {
+  return {
+    ...state,
+    bookings: state.bookings.map((booking) => ({
+      ...booking,
+      guestName: LOCAL_REDACTED_GUEST_NAME,
+      contactEmail: undefined,
+      contactPhone: undefined,
+      address: undefined,
+      identificationDetails: undefined,
+      notes: undefined,
+    })),
+  };
+}
+
+function containsRedactedGuests(bookings: Booking[]): boolean {
+  return bookings.some((booking) => booking.guestName === LOCAL_REDACTED_GUEST_NAME);
 }
 
 const loadedState = PersistenceRepository.load();
@@ -271,13 +319,13 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }
 
     const now = new Date().toISOString();
-    const updatedBookings = bookings.map((booking) =>
-      booking.id === id
-        ? normalizeBooking({ ...booking, ...updates, updatedAt: now })
-        : booking
-    );
-
-    set({ bookings: updatedBookings });
+    set({
+      bookings: bookings.map((booking) =>
+        booking.id === id
+          ? normalizeBooking({ ...booking, ...updates, updatedAt: now })
+          : booking
+      ),
+    });
     get()._persist();
     addActivity(
       'booking_updated',
@@ -516,6 +564,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
   clearAllData: async () => {
     await storageService.clearAll();
+    usePropertyStore.getState().resetProperties();
     get().resetDefaultSeedData();
   },
 
@@ -694,19 +743,41 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   _persist: () => {
-    const state = get();
-    const persistedState = {
-      version: 1,
-      selectedMonth: state.selectedMonth,
-      selectedYear: state.selectedYear,
-      taxConfiguration: state.taxConfiguration,
-      bookings: state.bookings,
-      expenses: state.expenses,
-      extraIncomes: state.extraIncomes,
-      userPreferences: state.userPreferences,
-      activityHistory: state.activityHistory,
-    };
-    PersistenceRepository.save(persistedState);
+    const persistedState = createPersistedSnapshot(get());
+    PersistenceRepository.save(redactLocalSnapshot(persistedState));
     void storageService.saveState(persistedState);
   },
 }));
+
+const initialSnapshot = createPersistedSnapshot(useDashboardStore.getState());
+
+if (containsRedactedGuests(initialSnapshot.bookings)) {
+  void storageService
+    .loadState()
+    .then((hydratedState) => {
+      if (!containsRedactedGuests(useDashboardStore.getState().bookings)) return;
+
+      useDashboardStore.setState({
+        selectedMonth: hydratedState.selectedMonth,
+        selectedYear: hydratedState.selectedYear,
+        taxConfiguration: {
+          ...DEFAULT_TAX_CONFIG,
+          ...hydratedState.taxConfiguration,
+        },
+        bookings: hydratedState.bookings.map(normalizeBooking),
+        expenses: hydratedState.expenses,
+        extraIncomes: hydratedState.extraIncomes,
+        userPreferences: {
+          ...DEFAULT_USER_PREFERENCES,
+          ...hydratedState.userPreferences,
+        },
+        activityHistory: hydratedState.activityHistory,
+      });
+    })
+    .catch((error) => console.error('Encrypted dashboard hydration failed:', error));
+} else {
+  void storageService
+    .saveState(initialSnapshot)
+    .then(() => PersistenceRepository.save(redactLocalSnapshot(initialSnapshot)))
+    .catch((error) => console.error('Dashboard PII migration failed:', error));
+}
