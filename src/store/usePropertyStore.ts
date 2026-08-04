@@ -17,12 +17,13 @@ function normalizeProperty(property: Partial<PropertyConfig>): PropertyConfig | 
 }
 
 function synchronizeLegacyCatalog(properties: PropertyConfig[]) {
-  ALL_PROPERTIES.splice(0, ALL_PROPERTIES.length, ...properties);
+  const activeProperties = properties.filter((property) => property.active !== false);
+  ALL_PROPERTIES.splice(0, ALL_PROPERTIES.length, ...activeProperties);
   for (const location of LOCATIONS) {
     location.properties.splice(
       0,
       location.properties.length,
-      ...properties.filter((property) => property.locationId === location.id)
+      ...activeProperties.filter((property) => property.locationId === location.id)
     );
   }
 }
