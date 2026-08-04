@@ -1,11 +1,54 @@
-import { PersistedState, Booking, Expense, ExtraIncome, TaxConfiguration, UserPreferences, ActivityRecord, TurnoverTask } from '../types';
+import { PersistedState, Booking } from '../types';
 import { encryptionService } from './encryptionService';
-import { DEFAULT_TAX_CONFIG, DEFAULT_USER_PREFERENCES, createDefaultExpenses, createSeedBookings, createSeedExtraIncome } from './persistenceRepository';
+import {
+  DEFAULT_TAX_CONFIG,
+  DEFAULT_USER_PREFERENCES,
+  createDefaultExpenses,
+  createSeedBookings,
+  createSeedExtraIncome,
+} from './persistenceRepository';
 
 const DB_NAME = 'ShortLetHQ_DB';
 const DB_VERSION = 1;
 const STORE_NAME = 'dashboard_state';
 const STATE_KEY = 'current_state';
+const FALLBACK_STORAGE_KEY = 'short_let_fallback_state';
+const DASHBOARD_STORAGE_KEY = 'short_let_dashboard_v1';
+const CRYPTO_STORAGE_KEY = 'short_let_crypto_key_v1';
+const REDACTED_GUEST_NAME = '[Encrypted guest data unavailable]';
+
+function createPrivateFallbackState(state: PersistedState): PersistedState {
+  return {
+    ...state,
+    bookings: state.bookings.map((booking) => ({
+      ...booking,
+      guestName: REDACTED_GUEST_NAME,
+      contactEmail: undefined,
+      contactPhone: undefined,
+      address: undefined,
+      identificationDetails: undefined,
+      notes: undefined,
+    })),
+  };
+}
+
+function normalizePersistedState(state: PersistedState): PersistedState {
+  return {
+    ...state,
+    taxConfiguration: {
+      ...DEFAULT_TAX_CONFIG,
+      ...state.taxConfiguration,
+    },
+    userPreferences: {
+      ...DEFAULT_USER_PREFERENCES,
+      ...state.userPreferences,
+    },
+    bookings: Array.isArray(state.bookings) ? state.bookings : [],
+    expenses: Array.isArray(state.expenses) ? state.expenses : [],
+    extraIncomes: Array.isArray(state.extraIncomes) ? state.extraIncomes : [],
+    activityHistory: Array.isArray(state.activityHistory) ? state.activityHistory : [],
+  };
+}
 
 class StorageService {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -25,53 +68,58 @@ class StorageService {
 
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error('IndexedDB open request was blocked.'));
     });
 
     return this.dbPromise;
   }
 
-  /**
-   * Encrypts guest PII fields before persisting state to IndexedDB.
-   */
   public async saveState(state: PersistedState): Promise<void> {
     try {
       const db = await this.getDB();
-      
-      // Encrypt PII fields in bookings
       const encryptedBookings: Booking[] = await Promise.all(
-        state.bookings.map(async (b) => ({
-          ...b,
-          guestName: await encryptionService.encrypt(b.guestName),
-          contactEmail: b.contactEmail ? await encryptionService.encrypt(b.contactEmail) : undefined,
-          contactPhone: b.contactPhone ? await encryptionService.encrypt(b.contactPhone) : undefined,
-          address: b.address ? await encryptionService.encrypt(b.address) : undefined,
-          identificationDetails: b.identificationDetails ? await encryptionService.encrypt(b.identificationDetails) : undefined,
-          notes: b.notes ? await encryptionService.encrypt(b.notes) : undefined,
+        state.bookings.map(async (booking) => ({
+          ...booking,
+          guestName: await encryptionService.encrypt(booking.guestName),
+          contactEmail: booking.contactEmail
+            ? await encryptionService.encrypt(booking.contactEmail)
+            : undefined,
+          contactPhone: booking.contactPhone
+            ? await encryptionService.encrypt(booking.contactPhone)
+            : undefined,
+          address: booking.address
+            ? await encryptionService.encrypt(booking.address)
+            : undefined,
+          identificationDetails: booking.identificationDetails
+            ? await encryptionService.encrypt(booking.identificationDetails)
+            : undefined,
+          notes: booking.notes ? await encryptionService.encrypt(booking.notes) : undefined,
         }))
       );
 
-      const stateToSave = {
+      const stateToSave: PersistedState = {
         ...state,
         bookings: encryptedBookings,
       };
 
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.put(stateToSave, STATE_KEY);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+        transaction.objectStore(STORE_NAME).put(stateToSave, STATE_KEY);
       });
-    } catch (e) {
-      console.error('IndexedDB save failed, falling back:', e);
-      // Fallback save to localStorage
-      localStorage.setItem('short_let_fallback_state', JSON.stringify(state));
+
+      localStorage.removeItem(FALLBACK_STORAGE_KEY);
+    } catch (error) {
+      console.error('IndexedDB save failed; storing a PII-redacted fallback:', error);
+      localStorage.setItem(
+        FALLBACK_STORAGE_KEY,
+        JSON.stringify(createPrivateFallbackState(state))
+      );
     }
   }
 
-  /**
-   * Loads state from IndexedDB and decrypts guest PII.
-   */
   public async loadState(): Promise<PersistedState> {
     const today = new Date();
     const currentYear = today.getFullYear();
@@ -80,58 +128,63 @@ class StorageService {
     try {
       const db = await this.getDB();
       const rawState = await new Promise<PersistedState | null>((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.get(STATE_KEY);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const request = transaction.objectStore(STORE_NAME).get(STATE_KEY);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
       });
 
-      if (rawState && rawState.bookings) {
-        // Decrypt guest PII fields
+      if (rawState?.bookings) {
         const decryptedBookings: Booking[] = await Promise.all(
-          rawState.bookings.map(async (b) => ({
-            ...b,
-            guestName: await encryptionService.decrypt(b.guestName),
-            contactEmail: b.contactEmail ? await encryptionService.decrypt(b.contactEmail) : undefined,
-            contactPhone: b.contactPhone ? await encryptionService.decrypt(b.contactPhone) : undefined,
-            address: b.address ? await encryptionService.decrypt(b.address) : undefined,
-            identificationDetails: b.identificationDetails ? await encryptionService.decrypt(b.identificationDetails) : undefined,
-            notes: b.notes ? await encryptionService.decrypt(b.notes) : undefined,
+          rawState.bookings.map(async (booking) => ({
+            ...booking,
+            guestName: await encryptionService.decrypt(booking.guestName),
+            contactEmail: booking.contactEmail
+              ? await encryptionService.decrypt(booking.contactEmail)
+              : undefined,
+            contactPhone: booking.contactPhone
+              ? await encryptionService.decrypt(booking.contactPhone)
+              : undefined,
+            address: booking.address
+              ? await encryptionService.decrypt(booking.address)
+              : undefined,
+            identificationDetails: booking.identificationDetails
+              ? await encryptionService.decrypt(booking.identificationDetails)
+              : undefined,
+            notes: booking.notes
+              ? await encryptionService.decrypt(booking.notes)
+              : undefined,
           }))
         );
 
-        return {
+        return normalizePersistedState({
           ...rawState,
           bookings: decryptedBookings,
-          taxConfiguration: {
-            ...DEFAULT_TAX_CONFIG,
-            ...rawState.taxConfiguration,
-          },
-          userPreferences: {
-            ...DEFAULT_USER_PREFERENCES,
-            ...rawState.userPreferences,
-          },
-        };
+        });
       }
-    } catch (e) {
-      console.warn('Failed to load state from IndexedDB:', e);
+    } catch (error) {
+      console.warn('Failed to load state from IndexedDB:', error);
     }
 
-    // Seed state if nothing in IndexedDB
-    const seedExpenses = createDefaultExpenses(currentYear, currentMonth);
-    const seedBookings = createSeedBookings(currentYear, currentMonth);
-    const seedExtraIncome = createSeedExtraIncome(currentYear, currentMonth);
+    try {
+      const fallback = localStorage.getItem(FALLBACK_STORAGE_KEY);
+      if (fallback) {
+        return normalizePersistedState(JSON.parse(fallback) as PersistedState);
+      }
+    } catch (error) {
+      console.warn('Failed to load the local fallback state:', error);
+      localStorage.removeItem(FALLBACK_STORAGE_KEY);
+    }
 
     const initialState: PersistedState = {
       version: 1,
-      taxConfiguration: DEFAULT_TAX_CONFIG,
-      bookings: seedBookings,
-      expenses: seedExpenses,
-      extraIncomes: seedExtraIncome,
+      taxConfiguration: { ...DEFAULT_TAX_CONFIG },
+      bookings: createSeedBookings(currentYear, currentMonth),
+      expenses: createDefaultExpenses(currentYear, currentMonth),
+      extraIncomes: createSeedExtraIncome(currentYear, currentMonth),
       selectedMonth: currentMonth,
       selectedYear: currentYear,
-      userPreferences: DEFAULT_USER_PREFERENCES,
+      userPreferences: { ...DEFAULT_USER_PREFERENCES },
       activityHistory: [
         {
           id: 'act-init',
@@ -147,13 +200,10 @@ class StorageService {
     return initialState;
   }
 
-  /**
-   * Anonymizes all guest PII while preserving financial numbers and bookings.
-   */
   public async anonymizePII(currentBookings: Booking[]): Promise<Booking[]> {
-    return currentBookings.map((b, idx) => ({
-      ...b,
-      guestName: `Guest ${String.fromCharCode(65 + (idx % 26))}${idx + 1}`,
+    return currentBookings.map((booking, index) => ({
+      ...booking,
+      guestName: `Guest ${String.fromCharCode(65 + (index % 26))}${index + 1}`,
       contactEmail: undefined,
       contactPhone: undefined,
       address: undefined,
@@ -162,19 +212,23 @@ class StorageService {
     }));
   }
 
-  /**
-   * Clears IndexedDB completely.
-   */
   public async clearAll(): Promise<void> {
     try {
       const db = await this.getDB();
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      store.clear();
-      localStorage.clear();
-    } catch (e) {
-      console.error('Failed to clear IndexedDB:', e);
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+        transaction.objectStore(STORE_NAME).clear();
+      });
+    } catch (error) {
+      console.error('Failed to clear IndexedDB:', error);
     }
+
+    localStorage.removeItem(DASHBOARD_STORAGE_KEY);
+    localStorage.removeItem(FALLBACK_STORAGE_KEY);
+    localStorage.removeItem(CRYPTO_STORAGE_KEY);
   }
 }
 
