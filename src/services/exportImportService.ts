@@ -4,14 +4,21 @@ import {
   Booking,
   BookingStatus,
   Channel,
+  CommissionBasis,
+  EcoTaxBasis,
   Expense,
   ExtraIncome,
+  FixedCommissionAllocationRule,
+  IncomeTaxBasis,
+  InsufficientTurnoverAction,
   PropertyConfig,
   TaxConfiguration,
   TaxTreatment,
   UserPreferences,
+  VatBasis,
+  VatInclusivity,
 } from '../types';
-import { ALL_PROPERTIES } from '../config/locations';
+import { ALL_PROPERTIES, LOCATIONS } from '../config/locations';
 import {
   calculateBookingRevenueAndCommission,
   calculatePropertyFinancials,
@@ -34,6 +41,40 @@ const TAX_TREATMENTS = new Set<TaxTreatment>([
   'accommodation_vat',
   'standard_vat',
   'vat_exempt',
+]);
+const LOCATION_IDS = new Set(LOCATIONS.map((location) => location.id));
+const VAT_INCLUSIVITY_VALUES = new Set<VatInclusivity>(['inclusive', 'exclusive']);
+const VAT_BASIS_VALUES = new Set<VatBasis>([
+  'gross',
+  'net_after_commission',
+  'excluding_vat',
+]);
+const ECO_BASIS_VALUES = new Set<EcoTaxBasis>([
+  'per_occupied_night',
+  'per_booking',
+  'per_guest_per_night',
+]);
+const INCOME_BASIS_VALUES = new Set<IncomeTaxBasis>([
+  'gross_revenue',
+  'net_after_vat',
+  'net_after_commission',
+  'taxable_profit',
+]);
+const COMMISSION_BASIS_VALUES = new Set<CommissionBasis>([
+  'accommodation_only',
+  'accommodation_plus_fees',
+  'gross_after_discounts',
+  'manual',
+]);
+const FIXED_ALLOCATION_VALUES = new Set<FixedCommissionAllocationRule>([
+  'check_in_date',
+  'proportional_nights',
+  'payout_date',
+]);
+const TURNOVER_ACTION_VALUES = new Set<InsufficientTurnoverAction>([
+  'warning_allow',
+  'require_confirmation',
+  'block_submission',
 ]);
 
 function csvCell(value: string | number | null | undefined): string {
@@ -69,6 +110,10 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+function isOptionalNonNegativeNumber(value: unknown): boolean {
+  return value == null || isNonNegativeNumber(value);
+}
+
 function isValidDateString(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
@@ -80,12 +125,39 @@ function isValidDateString(value: unknown): value is string {
   );
 }
 
+function isOptionalEnum<T extends string>(value: unknown, allowed: Set<T>): boolean {
+  return value == null || (typeof value === 'string' && allowed.has(value as T));
+}
+
+function validateTaxConfiguration(value: unknown): value is TaxConfiguration {
+  if (!isObject(value)) return false;
+
+  return (
+    isOptionalNonNegativeNumber(value.accommodationVatRate) &&
+    isOptionalNonNegativeNumber(value.standardVatRate) &&
+    isOptionalNonNegativeNumber(value.incomeTaxRate) &&
+    isOptionalNonNegativeNumber(value.ecoContributionCents) &&
+    isOptionalEnum(value.vatInclusivity, VAT_INCLUSIVITY_VALUES) &&
+    isOptionalEnum(value.vatBasis, VAT_BASIS_VALUES) &&
+    isOptionalEnum(value.ecoTaxBasis, ECO_BASIS_VALUES) &&
+    isOptionalEnum(value.incomeTaxBasis, INCOME_BASIS_VALUES) &&
+    isOptionalEnum(value.defaultExtraIncomeTaxTreatment, TAX_TREATMENTS) &&
+    isOptionalEnum(value.commissionBasis, COMMISSION_BASIS_VALUES) &&
+    isOptionalEnum(value.fixedCommissionAllocationRule, FIXED_ALLOCATION_VALUES) &&
+    isOptionalEnum(value.insufficientTurnoverAction, TURNOVER_ACTION_VALUES) &&
+    (value.defaultCheckInTime == null || isNonEmptyString(value.defaultCheckInTime)) &&
+    (value.defaultCheckOutTime == null || isNonEmptyString(value.defaultCheckOutTime)) &&
+    isOptionalNonNegativeNumber(value.defaultTurnoverMinutes)
+  );
+}
+
 function validateProperty(value: unknown): value is PropertyConfig {
   return (
     isObject(value) &&
     isNonEmptyString(value.id) &&
     isNonEmptyString(value.name) &&
     isNonEmptyString(value.locationId) &&
+    LOCATION_IDS.has(value.locationId) &&
     (value.active == null || typeof value.active === 'boolean')
   );
 }
@@ -435,8 +507,8 @@ export function validateBackupJson(
     if (!isObject(object)) {
       return { isValid: false, error: 'Backup file must contain a JSON object.' };
     }
-    if (!isObject(object.taxConfiguration)) {
-      return { isValid: false, error: 'Backup is missing a valid tax configuration.' };
+    if (!validateTaxConfiguration(object.taxConfiguration)) {
+      return { isValid: false, error: 'Backup contains an invalid tax configuration.' };
     }
     if (!Array.isArray(object.bookings)) {
       return { isValid: false, error: 'Backup is missing the bookings array.' };
