@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   BedDouble,
@@ -27,7 +27,8 @@ import {
   YAxis,
 } from 'recharts';
 import { useDashboardStore } from '../../store/useDashboardStore';
-import { ALL_PROPERTIES, CHANNEL_CONFIG } from '../../config/locations';
+import { getActiveProperties, usePropertyStore } from '../../store/usePropertyStore';
+import { CHANNEL_CONFIG } from '../../config/locations';
 import { MONTH_NAMES } from '../../utils/dateUtilities';
 import { formatCents } from '../../utils/currency';
 import { CustomSelect } from '../common/CustomSelect';
@@ -41,6 +42,8 @@ import {
   ReportFilter,
   ReportPeriod,
 } from '../../services/reportingService';
+
+const REPORT_PROPERTY_SESSION_KEY = 'shortlet-report-property-id';
 
 interface TooltipEntry {
   color?: string;
@@ -208,20 +211,37 @@ export function ReportsDashboard() {
   const expenses = useDashboardStore((state) => state.expenses);
   const extraIncomes = useDashboardStore((state) => state.extraIncomes);
   const taxConfiguration = useDashboardStore((state) => state.taxConfiguration);
+  const properties = usePropertyStore((state) => state.properties);
+  const activeProperties = getActiveProperties(properties);
 
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
-  const [propertyId, setPropertyId] = useState<string | 'all'>('all');
+  const [propertyId, setPropertyId] = useState<string | 'all'>(() => {
+    if (typeof window === 'undefined') return 'all';
+
+    const requestedPropertyId = window.sessionStorage.getItem(REPORT_PROPERTY_SESSION_KEY);
+    window.sessionStorage.removeItem(REPORT_PROPERTY_SESSION_KEY);
+
+    return requestedPropertyId && activeProperties.some((property) => property.id === requestedPropertyId)
+      ? requestedPropertyId
+      : 'all';
+  });
   const [comparePreviousYear, setComparePreviousYear] = useState(false);
+
+  useEffect(() => {
+    if (propertyId === 'all') return;
+    if (activeProperties.some((property) => property.id === propertyId)) return;
+    setPropertyId('all');
+  }, [activeProperties, propertyId]);
 
   const propertyOptions = useMemo(
     () => [
       { value: 'all', label: 'All Properties' },
-      ...ALL_PROPERTIES.map((property) => ({
+      ...activeProperties.map((property) => ({
         value: property.id,
         label: property.name,
       })),
     ],
-    []
+    [activeProperties]
   );
 
   const filter: ReportFilter = {
@@ -335,15 +355,12 @@ export function ReportsDashboard() {
 
   const propertyPerformance = useMemo(
     () =>
-      buildPropertyFinancialSeries(bookings, expenses, extraIncomes, taxConfiguration, {
-        ...filter,
-        propertyId: 'all',
-      }).sort(
+      buildPropertyFinancialSeries(bookings, expenses, extraIncomes, taxConfiguration, filter).sort(
         (a, b) =>
           (b.netBalanceCents ?? b.preTaxBalanceCents) -
           (a.netBalanceCents ?? a.preTaxBalanceCents)
       ),
-    [bookings, expenses, extraIncomes, taxConfiguration, period, selectedYear, selectedMonth]
+    [bookings, expenses, extraIncomes, taxConfiguration, period, selectedYear, selectedMonth, propertyId]
   );
 
   const displayBalance = summary.netBalanceCents ?? summary.preTaxBalanceCents;
@@ -357,7 +374,7 @@ export function ReportsDashboard() {
   const scopeLabel =
     propertyId === 'all'
       ? 'All properties'
-      : ALL_PROPERTIES.find((property) => property.id === propertyId)?.name ?? 'Selected property';
+      : activeProperties.find((property) => property.id === propertyId)?.name ?? 'Selected property';
 
   const hasFinancialData = financialSeries.some(
     (point) =>
@@ -692,8 +709,12 @@ export function ReportsDashboard() {
         </div>
 
         <ChartPanel
-          title="Property Profitability"
-          subtitle={`${periodLabel} • all properties ranked by ${summary.isTaxConfigured ? 'net balance' : 'pre-tax balance'}`}
+          title={propertyId === 'all' ? 'Property Profitability' : 'Property Performance'}
+          subtitle={
+            propertyId === 'all'
+              ? `${periodLabel} • all properties ranked by ${summary.isTaxConfigured ? 'net balance' : 'pre-tax balance'}`
+              : `${periodLabel} • ${scopeLabel}`
+          }
         >
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             {propertyPerformance.map((property) => {
