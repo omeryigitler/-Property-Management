@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { DEFAULT_PROPERTIES, LOCATIONS } from '../config/locations';
+import { ALL_PROPERTIES, DEFAULT_PROPERTIES, LOCATIONS } from '../config/locations';
 import { PropertyConfig } from '../types';
 
 const STORAGE_KEY = 'short_let_properties_v1';
@@ -16,28 +16,46 @@ function normalizeProperty(property: Partial<PropertyConfig>): PropertyConfig | 
   };
 }
 
+function synchronizeLegacyCatalog(properties: PropertyConfig[]) {
+  ALL_PROPERTIES.splice(0, ALL_PROPERTIES.length, ...properties);
+  for (const location of LOCATIONS) {
+    location.properties.splice(
+      0,
+      location.properties.length,
+      ...properties.filter((property) => property.locationId === location.id)
+    );
+  }
+}
+
 function loadProperties(): PropertyConfig[] {
+  let next: PropertyConfig[];
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_PROPERTIES.map((property) => ({ ...property }));
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return DEFAULT_PROPERTIES.map((property) => ({ ...property }));
-
-    const normalized = parsed
-      .map((property) => normalizeProperty(property))
-      .filter((property): property is PropertyConfig => property !== null);
-
-    return normalized.length > 0
-      ? normalized
-      : DEFAULT_PROPERTIES.map((property) => ({ ...property }));
+    if (!raw) {
+      next = DEFAULT_PROPERTIES.map((property) => ({ ...property }));
+    } else {
+      const parsed = JSON.parse(raw);
+      const normalized = Array.isArray(parsed)
+        ? parsed
+            .map((property) => normalizeProperty(property))
+            .filter((property): property is PropertyConfig => property !== null)
+        : [];
+      next = normalized.length > 0
+        ? normalized
+        : DEFAULT_PROPERTIES.map((property) => ({ ...property }));
+    }
   } catch {
-    return DEFAULT_PROPERTIES.map((property) => ({ ...property }));
+    next = DEFAULT_PROPERTIES.map((property) => ({ ...property }));
   }
+
+  synchronizeLegacyCatalog(next);
+  return next;
 }
 
 function saveProperties(properties: PropertyConfig[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(properties));
+  synchronizeLegacyCatalog(properties);
 }
 
 function createPropertyId(name: string, existingIds: Set<string>): string {
