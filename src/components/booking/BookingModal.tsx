@@ -4,9 +4,6 @@ import {
   Ban,
   Calendar as CalendarIcon,
   Copy,
-  CreditCard,
-  Mail,
-  Phone,
   Save,
   Trash2,
   User,
@@ -14,11 +11,11 @@ import {
 } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 import { ALL_PROPERTIES, CHANNEL_CONFIG } from '../../config/locations';
-import { Booking, BookingStatus, Channel, CommissionMode } from '../../types';
+import { Booking, BookingStatus, Channel } from '../../types';
 import { CustomSelect } from '../common/CustomSelect';
 import { CustomDatePicker } from '../common/CustomDatePicker';
 import { calculateNights } from '../../utils/dateUtilities';
-import { centsToEuros, eurosToCents, formatCents } from '../../utils/currency';
+import { centsToEuros, eurosToCents } from '../../utils/currency';
 import { getBookingOccupiedNights } from '../../utils/bookingCalculations';
 import { DEFAULT_CHANNEL_COMMISSIONS } from '../../services/financialCalculationService';
 
@@ -61,33 +58,8 @@ export function BookingModal() {
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
   const [nightlyRate, setNightlyRate] = useState('');
-  const [totalAccommodation, setTotalAccommodation] = useState('');
-  const [adults, setAdults] = useState('2');
-  const [children, setChildren] = useState('0');
   const [status, setStatus] = useState<BookingStatus>('confirmed');
-  const [discount, setDiscount] = useState('0');
-  const [cleaningFee, setCleaningFee] = useState('0');
-  const [notes, setNotes] = useState('');
-  const [bookingRef, setBookingRef] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [commissionMode, setCommissionMode] = useState<CommissionMode>('percentage');
-  const [commissionPercentage, setCommissionPercentage] = useState('15');
-  const [commissionFixedAmount, setCommissionFixedAmount] = useState('0');
-  const [commissionOverrideEnabled, setCommissionOverrideEnabled] = useState(false);
-  const [checkInTime, setCheckInTime] = useState('15:00');
-  const [checkOutTime, setCheckOutTime] = useState('10:00');
-  const [earlyCheckIn, setEarlyCheckIn] = useState(false);
-  const [lateCheckOut, setLateCheckOut] = useState(false);
-  const [requiredTurnoverMinutes, setRequiredTurnoverMinutes] = useState('240');
   const [formError, setFormError] = useState<string | null>(null);
-
-  const applyChannelDefaults = (nextChannel: Channel) => {
-    const defaults = getChannelCommission(nextChannel);
-    setCommissionMode(defaults.mode);
-    setCommissionPercentage(defaults.percentage.toString());
-    setCommissionFixedAmount('0');
-  };
 
   const populateFromBooking = (booking: Booking, asCopy: boolean) => {
     const activePropertyId = ALL_PROPERTIES.some((property) => property.id === booking.propertyId)
@@ -100,37 +72,7 @@ export function BookingModal() {
     setCheckInDate(asCopy ? '' : booking.checkInDate);
     setCheckOutDate(asCopy ? '' : booking.checkOutDate);
     setNightlyRate(euroInputFromCents(booking.nightlyRateCents));
-    setTotalAccommodation(
-      booking.accommodationTotalCents != null
-        ? euroInputFromCents(booking.accommodationTotalCents)
-        : ''
-    );
-    setAdults(booking.adults.toString());
-    setChildren(booking.children.toString());
     setStatus(asCopy ? 'confirmed' : booking.status);
-    setDiscount(euroInputFromCents(booking.discountCents));
-    setCleaningFee(euroInputFromCents(booking.cleaningFeeCents));
-    setNotes(booking.notes || '');
-    setBookingRef(
-      asCopy && booking.bookingRef ? `${booking.bookingRef}-COPY` : booking.bookingRef || ''
-    );
-    setContactEmail(booking.contactEmail || '');
-    setContactPhone(booking.contactPhone || '');
-    setCommissionMode(booking.commissionMode ?? getChannelCommission(booking.channel).mode);
-    setCommissionPercentage(
-      (booking.commissionPercentage ?? getChannelCommission(booking.channel).percentage).toString()
-    );
-    setCommissionFixedAmount(
-      euroInputFromCents(booking.commissionFixedAmountCents ?? 0)
-    );
-    setCommissionOverrideEnabled(booking.commissionOverrideEnabled ?? false);
-    setCheckInTime(booking.checkInTime || taxConfig.defaultCheckInTime || '15:00');
-    setCheckOutTime(booking.checkOutTime || taxConfig.defaultCheckOutTime || '10:00');
-    setEarlyCheckIn(booking.earlyCheckIn ?? false);
-    setLateCheckOut(booking.lateCheckOut ?? false);
-    setRequiredTurnoverMinutes(
-      String(booking.requiredTurnoverMinutes ?? taxConfig.defaultTurnoverMinutes ?? 240)
-    );
   };
 
   useEffect(() => {
@@ -148,10 +90,9 @@ export function BookingModal() {
       return;
     }
 
-    const defaultChannel: Channel = 'airbnb';
     setPropertyId(modalParams.prefilledPropertyId || ALL_PROPERTIES[0]?.id || '');
     setGuestName('');
-    setChannel(defaultChannel);
+    setChannel('airbnb');
     setCheckInDate(modalParams.prefilledDate || '');
 
     if (modalParams.prefilledDate) {
@@ -168,45 +109,9 @@ export function BookingModal() {
     }
 
     setNightlyRate('120');
-    setTotalAccommodation('');
-    setAdults('2');
-    setChildren('0');
     setStatus('confirmed');
-    setDiscount('0');
-    setCleaningFee('40');
-    setNotes('');
-    setBookingRef('');
-    setContactEmail('');
-    setContactPhone('');
-    applyChannelDefaults(defaultChannel);
-    setCommissionOverrideEnabled(false);
-    setCheckInTime(taxConfig.defaultCheckInTime || '15:00');
-    setCheckOutTime(taxConfig.defaultCheckOutTime || '10:00');
-    setEarlyCheckIn(false);
-    setLateCheckOut(false);
-    setRequiredTurnoverMinutes(String(taxConfig.defaultTurnoverMinutes || 240));
     setFormError(null);
-  }, [activeModal, modalParams, editingBooking, copiedBooking, taxConfig]);
-
-  useEffect(() => {
-    if (totalAccommodation.trim() === '') return;
-    const nights = Math.max(0, calculateNights(checkInDate, checkOutDate));
-    if (nights <= 0) return;
-    const totalCents = Math.max(0, eurosToCents(totalAccommodation));
-    setNightlyRate(euroInputFromCents(Math.round(totalCents / nights)));
-  }, [checkInDate, checkOutDate, totalAccommodation]);
-
-  if (!isAdding && !isEditing) return null;
-
-  const handleChannelChange = (nextChannel: Channel) => {
-    setChannel(nextChannel);
-    if (!commissionOverrideEnabled) applyChannelDefaults(nextChannel);
-  };
-
-  const handleCommissionOverrideChange = (enabled: boolean) => {
-    setCommissionOverrideEnabled(enabled);
-    if (!enabled) applyChannelDefaults(channel);
-  };
+  }, [activeModal, modalParams, editingBooking, copiedBooking, isAdding, isEditing]);
 
   const unavailableDates = useMemo(
     () =>
@@ -225,49 +130,18 @@ export function BookingModal() {
 
   const nightsCount = Math.max(0, calculateNights(checkInDate, checkOutDate));
   const parsedNightlyRateCents = Math.max(0, eurosToCents(nightlyRate));
-  const parsedTotalAccommodationCents = Math.max(0, eurosToCents(totalAccommodation));
-  const usesExactTotal = totalAccommodation.trim() !== '';
-  const accommodationBeforeDiscountCents = usesExactTotal
-    ? parsedTotalAccommodationCents
-    : nightsCount * parsedNightlyRateCents;
-  const parsedDiscountCents = Math.min(
-    accommodationBeforeDiscountCents,
-    Math.max(0, eurosToCents(discount))
+  const calculatedTotalCents = nightsCount * parsedNightlyRateCents;
+  const pricingMatchesStoredBooking = Boolean(
+    isEditing &&
+      editingBooking &&
+      editingBooking.checkInDate === checkInDate &&
+      editingBooking.checkOutDate === checkOutDate &&
+      editingBooking.nightlyRateCents === parsedNightlyRateCents
   );
-  const parsedCleaningFeeCents = Math.max(0, eurosToCents(cleaningFee));
-  const parsedCommissionPercentage = Number.parseFloat(commissionPercentage) || 0;
-  const parsedCommissionFixedCents = Math.max(0, eurosToCents(commissionFixedAmount));
-  const grossAccommodationRevenueCents = Math.max(
-    0,
-    accommodationBeforeDiscountCents - parsedDiscountCents
-  );
-  const grossBookingRevenueCents =
-    grossAccommodationRevenueCents + parsedCleaningFeeCents;
-  const percentageCommissionBaseCents =
-    taxConfig.commissionBasis === 'accommodation_plus_fees' ||
-    taxConfig.commissionBasis === 'gross_after_discounts'
-      ? grossBookingRevenueCents
-      : grossAccommodationRevenueCents;
-  const otaCommissionCents =
-    commissionMode === 'percentage'
-      ? Math.round(percentageCommissionBaseCents * (parsedCommissionPercentage / 100))
-      : commissionMode === 'fixed'
-        ? parsedCommissionFixedCents
-        : 0;
-  const netBookingRevenueCents = grossBookingRevenueCents - otaCommissionCents;
-  const suggestedCommissionPercentage = getChannelCommission(channel).percentage;
-
-  const handleNightlyRateChange = (value: string) => {
-    setNightlyRate(value);
-    setTotalAccommodation('');
-  };
-
-  const handleTotalAccommodationChange = (value: string) => {
-    setTotalAccommodation(value);
-    if (value.trim() === '' || nightsCount <= 0) return;
-    const totalCents = Math.max(0, eurosToCents(value));
-    setNightlyRate(euroInputFromCents(Math.round(totalCents / nightsCount)));
-  };
+  const displayedTotalCents =
+    pricingMatchesStoredBooking && editingBooking?.accommodationTotalCents != null
+      ? editingBooking.accommodationTotalCents
+      : calculatedTotalCents;
 
   const propertyOptions = ALL_PROPERTIES.map((property) => ({
     value: property.id,
@@ -281,6 +155,8 @@ export function BookingModal() {
     { value: 'cancelled', label: 'Cancelled' },
   ];
 
+  if (!isAdding && !isEditing) return null;
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setFormError(null);
@@ -290,7 +166,7 @@ export function BookingModal() {
       return;
     }
     if (!guestName.trim()) {
-      setFormError('Guest name / lead contact is required.');
+      setFormError('Guest name is required.');
       return;
     }
     if (!checkInDate || !checkOutDate) {
@@ -301,66 +177,81 @@ export function BookingModal() {
       setFormError('Check-out date must be strictly after check-in date.');
       return;
     }
-    if (parsedCommissionPercentage < 0 || parsedCommissionPercentage > 100) {
-      setFormError('Commission percentage must be between 0 and 100.');
+    if (!nightlyRate.trim()) {
+      setFormError('Nightly rate is required.');
       return;
     }
 
-    const parsedAdults = Number.parseInt(adults, 10);
-    const parsedChildren = Number.parseInt(children, 10);
-    const parsedTurnoverMinutes = Number.parseInt(requiredTurnoverMinutes, 10);
+    if (isEditing && editingBooking) {
+      const updates: Partial<Booking> = {
+        propertyId,
+        guestName: guestName.trim(),
+        channel,
+        checkInDate,
+        checkOutDate,
+        nightlyRateCents: parsedNightlyRateCents,
+        status,
+      };
 
-    if (!Number.isInteger(parsedAdults) || parsedAdults < 1) {
-      setFormError('At least one adult is required.');
-      return;
-    }
-    if (!Number.isInteger(parsedChildren) || parsedChildren < 0) {
-      setFormError('Children must be zero or a positive whole number.');
-      return;
-    }
-    if (!Number.isInteger(parsedTurnoverMinutes) || parsedTurnoverMinutes < 0) {
-      setFormError('Required cleaning time must be zero or a positive whole number.');
+      if (!pricingMatchesStoredBooking) {
+        updates.accommodationTotalCents = calculatedTotalCents;
+      }
+
+      if (channel !== editingBooking.channel) {
+        const channelDefaults = getChannelCommission(channel);
+        updates.suggestedCommissionPercentage = channelDefaults.percentage;
+
+        if (!editingBooking.commissionOverrideEnabled) {
+          updates.commissionMode = channelDefaults.mode;
+          updates.commissionPercentage = channelDefaults.percentage;
+          updates.commissionFixedAmountCents = 0;
+          updates.commissionOverrideEnabled = false;
+        }
+      }
+
+      const result = updateBooking(editingBooking.id, updates);
+      if (!result.success) {
+        setFormError(result.error || 'The reservation could not be saved.');
+        return;
+      }
+
+      closeModal();
       return;
     }
 
-    const payload = {
+    const channelDefaults = getChannelCommission(channel);
+    const result = addBooking({
       propertyId,
       guestName: guestName.trim(),
       channel,
       checkInDate,
       checkOutDate,
       nightlyRateCents: parsedNightlyRateCents,
-      accommodationTotalCents: usesExactTotal
-        ? parsedTotalAccommodationCents
-        : undefined,
-      adults: parsedAdults,
-      children: parsedChildren,
+      accommodationTotalCents: calculatedTotalCents,
+      adults: 2,
+      children: 0,
       status,
-      discountCents: parsedDiscountCents,
-      cleaningFeeCents: parsedCleaningFeeCents,
-      notes: notes.trim() || undefined,
-      bookingRef: bookingRef.trim() || undefined,
-      contactEmail: contactEmail.trim() || undefined,
-      contactPhone: contactPhone.trim() || undefined,
-      commissionMode,
-      commissionPercentage: parsedCommissionPercentage,
-      commissionFixedAmountCents: parsedCommissionFixedCents,
-      suggestedCommissionPercentage,
-      commissionOverrideEnabled,
-      checkInTime,
-      checkOutTime,
+      discountCents: 0,
+      cleaningFeeCents: 0,
+      notes: undefined,
+      bookingRef: undefined,
+      contactEmail: undefined,
+      contactPhone: undefined,
+      commissionMode: channelDefaults.mode,
+      commissionPercentage: channelDefaults.percentage,
+      commissionFixedAmountCents: 0,
+      suggestedCommissionPercentage: channelDefaults.percentage,
+      commissionOverrideEnabled: false,
+      checkInTime: taxConfig.defaultCheckInTime || '15:00',
+      checkOutTime: taxConfig.defaultCheckOutTime || '10:00',
       timezone: 'Europe/Malta',
-      earlyCheckIn,
-      lateCheckOut,
-      requiredTurnoverMinutes: parsedTurnoverMinutes,
-      turnoverStatus: 'sufficient' as const,
-      source: 'manual' as const,
-      syncStatus: 'not_synced' as const,
-    };
-
-    const result = isEditing && editingBooking
-      ? updateBooking(editingBooking.id, payload)
-      : addBooking(payload);
+      earlyCheckIn: false,
+      lateCheckOut: false,
+      requiredTurnoverMinutes: Math.max(0, taxConfig.defaultTurnoverMinutes ?? 240),
+      turnoverStatus: 'sufficient',
+      source: 'manual',
+      syncStatus: 'not_synced',
+    });
 
     if (!result.success) {
       setFormError(result.error || 'The reservation could not be saved.');
@@ -398,10 +289,10 @@ export function BookingModal() {
               </h3>
               <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:text-xs">
                 {isEditing
-                  ? `Ref: ${editingBooking?.bookingRef || editingBooking?.id}`
+                  ? 'Update reservation details'
                   : copiedBooking
                     ? 'Review details and select new dates'
-                    : 'Select dates and guest details'}
+                    : 'Enter reservation details'}
               </p>
             </div>
           </div>
@@ -445,7 +336,7 @@ export function BookingModal() {
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => handleChannelChange(item.id as Channel)}
+                      onClick={() => setChannel(item.id as Channel)}
                       className={`flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all ${
                         selected
                           ? `${item.badgeClass} shadow-md`
@@ -464,7 +355,7 @@ export function BookingModal() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Guest Name / Lead Contact *
+                Guest Name *
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
@@ -485,29 +376,6 @@ export function BookingModal() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
-              <input
-                type="email"
-                value={contactEmail}
-                onChange={(event) => setContactEmail(event.target.value)}
-                placeholder="Guest email (optional)"
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 pl-9 pr-3 text-xs text-slate-100 outline-none focus:border-cyan-500"
-              />
-            </div>
-            <div className="relative">
-              <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
-              <input
-                type="tel"
-                value={contactPhone}
-                onChange={(event) => setContactPhone(event.target.value)}
-                placeholder="Guest phone (optional)"
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 pl-9 pr-3 text-xs text-slate-100 outline-none focus:border-cyan-500"
-              />
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <CustomDatePicker
               label="Check-In Date *"
@@ -525,291 +393,36 @@ export function BookingModal() {
             />
           </div>
 
-          <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-3.5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-              Operational Schedule & Turnovers
-            </h4>
-            <div className="grid grid-cols-3 gap-3 text-xs">
-              <label className="space-y-1 text-slate-400">
-                <span className="block font-medium">Check-in</span>
-                <input
-                  type="time"
-                  value={checkInTime}
-                  onChange={(event) => setCheckInTime(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100"
-                />
-              </label>
-              <label className="space-y-1 text-slate-400">
-                <span className="block font-medium">Check-out</span>
-                <input
-                  type="time"
-                  value={checkOutTime}
-                  onChange={(event) => setCheckOutTime(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100"
-                />
-              </label>
-              <label className="space-y-1 text-slate-400">
-                <span className="block font-medium">Cleaning mins</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="30"
-                  value={requiredTurnoverMinutes}
-                  onChange={(event) => setRequiredTurnoverMinutes(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-100"
-                />
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={earlyCheckIn}
-                  onChange={(event) => setEarlyCheckIn(event.target.checked)}
-                  className="themed-checkbox"
-                />
-                Early Check-in
-              </label>
-              <label className="flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={lateCheckOut}
-                  onChange={(event) => setLateCheckOut(event.target.checked)}
-                  className="themed-checkbox"
-                />
-                Late Check-out
-              </label>
-            </div>
-          </section>
-
-          <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-950 p-4">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-              <h4 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-cyan-400">
-                <CreditCard className="h-4 w-4" /> Financial & Commission Breakdown
-              </h4>
-              <span className="text-xs font-medium text-slate-400">
-                {nightsCount} {nightsCount === 1 ? 'Night' : 'Nights'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-xs font-semibold text-slate-300">
-                <span className="block">Nightly Rate (€)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={nightlyRate}
-                  onChange={(event) => handleNightlyRateChange(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
-                />
-                <span className="block text-[9px] font-normal text-slate-500">
-                  Editing this switches pricing back to nightly.
-                </span>
-              </label>
-
-              <label className="space-y-1 text-xs font-semibold text-slate-300">
-                <span className="block">Total Accommodation (€) · Optional</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={totalAccommodation}
-                  onChange={(event) => handleTotalAccommodationChange(event.target.value)}
-                  placeholder={
-                    nightsCount > 0
-                      ? euroInputFromCents(nightsCount * parsedNightlyRateCents)
-                      : 'Enter total after selecting dates'
-                  }
-                  className="h-9 w-full rounded-lg border border-cyan-800 bg-cyan-950/20 px-3 text-xs text-cyan-100 outline-none focus:ring-1 focus:ring-cyan-500"
-                />
-                <span className="block text-[9px] font-normal text-slate-500">
-                  Entering a total divides it across {nightsCount || 'the selected'} nights.
-                </span>
-              </label>
-
-              <label className="space-y-1 text-xs font-semibold text-slate-300">
-                <span className="block">Cleaning Fee (€)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={cleaningFee}
-                  onChange={(event) => setCleaningFee(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
-                />
-              </label>
-
-              <label className="space-y-1 text-xs font-semibold text-slate-300">
-                <span className="block">Discount (€)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={discount}
-                  onChange={(event) => setDiscount(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
-                />
-              </label>
-            </div>
-
-            <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/80 p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-amber-300">OTA Commission</span>
-                  <p className="mt-0.5 text-[9px] text-slate-500">
-                    Percentage base: {taxConfig.commissionBasis.replace(/_/g, ' ')}
-                  </p>
-                </div>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
-                  <input
-                    type="checkbox"
-                    checked={commissionOverrideEnabled}
-                    onChange={(event) =>
-                      handleCommissionOverrideChange(event.target.checked)
-                    }
-                    className="themed-checkbox"
-                  />
-                  Override channel default
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                <label className="space-y-1 text-slate-400">
-                  <span className="block">Commission Type</span>
-                  <select
-                    value={commissionMode}
-                    disabled={!commissionOverrideEnabled}
-                    onChange={(event) =>
-                      setCommissionMode(event.target.value as CommissionMode)
-                    }
-                    data-custom-select-ignore="true"
-                    className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="fixed">Fixed Amount (€)</option>
-                    <option value="none">None (0%)</option>
-                  </select>
-                </label>
-
-                {commissionMode === 'percentage' && (
-                  <label className="space-y-1 text-slate-400">
-                    <span className="block">Commission Rate (%)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      disabled={!commissionOverrideEnabled}
-                      value={commissionPercentage}
-                      onChange={(event) => setCommissionPercentage(event.target.value)}
-                      className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                  </label>
-                )}
-
-                {commissionMode === 'fixed' && (
-                  <label className="space-y-1 text-slate-400">
-                    <span className="block">Fixed Amount (€)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      disabled={!commissionOverrideEnabled}
-                      value={commissionFixedAmount}
-                      onChange={(event) => setCommissionFixedAmount(event.target.value)}
-                      className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                  </label>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
-              <div className="flex justify-between gap-3">
-                <span>
-                  Accommodation ({nightsCount} nights{usesExactTotal ? ' · exact total' : ''})
-                </span>
-                <span className="font-medium text-slate-200">
-                  {formatCents(accommodationBeforeDiscountCents)}
-                </span>
-              </div>
-              {usesExactTotal && nightsCount > 0 && (
-                <div className="flex justify-between text-cyan-400">
-                  <span>Derived Nightly Rate</span>
-                  <span>{formatCents(Math.round(parsedTotalAccommodationCents / nightsCount))}</span>
-                </div>
-              )}
-              {parsedCleaningFeeCents > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>+ Cleaning Fee</span>
-                  <span>{formatCents(parsedCleaningFeeCents)}</span>
-                </div>
-              )}
-              {parsedDiscountCents > 0 && (
-                <div className="flex justify-between text-rose-400">
-                  <span>- Discount</span>
-                  <span>{formatCents(parsedDiscountCents)}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-slate-800 pt-1 text-slate-200">
-                <span>Gross Booking Total</span>
-                <span className="font-bold">{formatCents(grossBookingRevenueCents)}</span>
-              </div>
-              <div className="flex justify-between text-amber-400">
-                <span>- Channel Commission</span>
-                <span>-{formatCents(otaCommissionCents)}</span>
-              </div>
-              <div className="flex justify-between border-t border-slate-800 pt-1.5 text-sm font-extrabold text-cyan-300">
-                <span>Net Owner Payout</span>
-                <span>{formatCents(netBookingRevenueCents)}</span>
-              </div>
-            </div>
-          </section>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <label className="space-y-1 text-xs font-semibold text-slate-300">
-              <span className="block">Adults</span>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={adults}
-                onChange={(event) => setAdults(event.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-100"
-              />
-            </label>
-            <label className="space-y-1 text-xs font-semibold text-slate-300">
-              <span className="block">Children</span>
+          <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-800 bg-slate-950 p-4 sm:grid-cols-2">
+            <label className="space-y-1.5 text-xs font-semibold text-slate-300">
+              <span className="block uppercase tracking-wider">Nightly Rate (€) *</span>
               <input
                 type="number"
                 min="0"
-                step="1"
-                value={children}
-                onChange={(event) => setChildren(event.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-100"
+                step="0.01"
+                required
+                value={nightlyRate}
+                onChange={(event) => setNightlyRate(event.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
               />
             </label>
-            <label className="col-span-2 space-y-1 text-xs font-semibold text-slate-300 sm:col-span-1">
-              <span className="block">Booking Ref</span>
+
+            <label className="space-y-1.5 text-xs font-semibold text-slate-300">
+              <span className="flex items-center justify-between gap-2 uppercase tracking-wider">
+                <span>Total (€)</span>
+                <span className="text-[10px] font-medium normal-case tracking-normal text-slate-500">
+                  {nightsCount} {nightsCount === 1 ? 'night' : 'nights'}
+                </span>
+              </span>
               <input
-                type="text"
-                value={bookingRef}
-                onChange={(event) => setBookingRef(event.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-100"
+                type="number"
+                readOnly
+                value={nightsCount > 0 ? euroInputFromCents(displayedTotalCents) : ''}
+                placeholder="Select dates"
+                className="h-10 w-full cursor-not-allowed rounded-lg border border-cyan-800 bg-cyan-950/20 px-3 text-sm font-bold text-cyan-100 outline-none"
               />
             </label>
           </div>
-
-          <label className="block space-y-1 text-xs font-semibold text-slate-300">
-            <span>Internal Operational Notes</span>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              className="w-full resize-none rounded-lg border border-slate-700/80 bg-slate-950 px-3.5 py-2 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
-            />
-          </label>
 
           {isEditing && editingBooking && (
             <div className="flex flex-col justify-between gap-1 border-t border-slate-800 pt-2 text-[10px] text-slate-500 sm:flex-row">
