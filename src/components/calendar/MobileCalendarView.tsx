@@ -27,6 +27,7 @@ import { isRentExpense, sumExpenses } from '../../utils/expenseUtilities';
 import { CustomSelect } from '../common/CustomSelect';
 
 const MOBILE_DAY_ROW_HEIGHT = 58;
+const REPORT_PROPERTY_SESSION_KEY = 'shortlet-report-property-id';
 
 type MobileSection = 'schedule' | 'finance';
 
@@ -199,6 +200,13 @@ export function MobileCalendarView() {
     });
   };
 
+  const openSelectedPropertyReports = () => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(REPORT_PROPERTY_SESSION_KEY, selectedPropertyId);
+    }
+    setMainViewMode('analytics');
+  };
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden md:hidden">
       <div className="flex-shrink-0 space-y-3 border-b border-slate-800 bg-slate-950 pb-3">
@@ -361,11 +369,11 @@ export function MobileCalendarView() {
                 const booking = span.booking;
                 const channel = channelMeta[booking.channel];
                 const occupiedBookingNights = getBookingOccupiedNights(booking);
-                const compact = span.visibleDates.length <= 2;
+                const isCompact = span.visibleDates.length <= 2;
                 const isProvisional = booking.status === 'provisional';
-                const stripeStyle =
+                const provisionalStripeClass =
                   isProvisional && showProvisionalBlock
-                    ? 'bg-[linear-gradient(45deg,rgba(0,0,0,0.3)_25%,transparent_25%,transparent_50%,rgba(0,0,0,0.3)_50%,rgba(0,0,0,0.3)_75%,transparent_75%,transparent)] bg-[length:12px_12px]'
+                    ? 'bg-[linear-gradient(45deg,rgba(0,0,0,0.30)_25%,transparent_25%,transparent_50%,rgba(0,0,0,0.30)_50%,rgba(0,0,0,0.30)_75%,transparent_75%,transparent)] bg-[length:12px_12px]'
                     : '';
 
                 const accommodationForNight = (dateStr: string) => {
@@ -392,46 +400,45 @@ export function MobileCalendarView() {
                       gridColumn: 2,
                       gridRow: `${span.startIndex + 1} / span ${span.visibleDates.length}`,
                     }}
-                    className={`z-10 min-h-0 overflow-hidden border text-left shadow-lg ${channel.block} ${stripeStyle}`}
+                    className={`z-10 min-h-0 overflow-hidden border text-left shadow-lg ${channel.block} ${provisionalStripeClass}`}
                   >
                     <div
                       className={`grid h-full min-h-0 ${
-                        compact
-                          ? 'grid-cols-[92px_minmax(0,1fr)]'
-                          : 'grid-cols-[66px_minmax(0,1fr)]'
+                        isCompact ? 'grid-cols-[96px_minmax(0,1fr)]' : 'grid-cols-[66px_minmax(0,1fr)]'
                       }`}
                     >
                       <div className={`flex min-h-0 flex-col overflow-hidden border-r ${channel.rail}`}>
-                        {compact ? (
-                          <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-hidden px-2 text-center">
+                        {isCompact ? (
+                          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-2 py-1 text-center">
                             <span className="w-full truncate text-[8px] font-black uppercase tracking-wide text-white">
                               {booking.guestName}
                             </span>
-                            <strong className="mt-1 font-mono text-[9px] font-black text-white">
+                            <strong className="mt-0.5 font-mono text-[8px] font-black text-white">
                               {formatCents(visibleAccommodationTotalCents)}
                             </strong>
                           </div>
                         ) : (
-                          <>
-                            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden py-1">
-                              <div
-                                className="flex items-center gap-2 whitespace-nowrap"
-                                style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-                              >
-                                <span className="max-h-full overflow-hidden text-ellipsis text-[10px] font-black uppercase tracking-wider text-white">
-                                  {booking.guestName}
-                                </span>
-                                <strong className="font-mono text-[9px] font-black text-white">
-                                  {formatCents(visibleAccommodationTotalCents)}
-                                </strong>
-                              </div>
-                            </div>
-                            <span
-                              className={`mx-auto mb-1 flex-shrink-0 rounded border px-1 py-0.5 text-[6px] font-black uppercase leading-none ${channel.badge}`}
+                          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden py-1">
+                            <div
+                              className="flex items-center gap-2 whitespace-nowrap"
+                              style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                             >
-                              {channel.label.slice(0, 3)}
-                            </span>
-                          </>
+                              <span className="max-h-full overflow-hidden text-ellipsis text-[10px] font-black uppercase tracking-wider text-white">
+                                {booking.guestName}
+                              </span>
+                              <strong className="font-mono text-[9px] font-black text-white">
+                                {formatCents(visibleAccommodationTotalCents)}
+                              </strong>
+                            </div>
+                          </div>
+                        )}
+
+                        {!isCompact && (
+                          <span
+                            className={`mx-auto mb-1 flex-shrink-0 rounded border px-1 py-0.5 text-[6px] font-black uppercase leading-none ${channel.badge}`}
+                          >
+                            {channel.label.slice(0, 3)}
+                          </span>
                         )}
                       </div>
 
@@ -458,7 +465,7 @@ export function MobileCalendarView() {
           </section>
         ) : (
           <div className="space-y-3 pt-3">
-            <section className="border-t-2 border-[#ff3e00] pt-3">
+            <section>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-display text-xs font-black uppercase tracking-widest text-[#ff3e00]">
@@ -477,33 +484,25 @@ export function MobileCalendarView() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl border border-emerald-900/70 bg-emerald-950/15 p-3">
-                  <span className="text-[8px] font-black uppercase tracking-wider text-emerald-400">
-                    Net Booking
-                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-emerald-400">Net Booking</span>
                   <span className="mt-1 block font-mono text-sm font-black text-emerald-300">
                     {formatCents(financials.netBookingIncomeCents)}
                   </span>
                 </div>
                 <div className="rounded-xl border border-violet-900/70 bg-violet-950/15 p-3">
-                  <span className="text-[8px] font-black uppercase tracking-wider text-violet-300">
-                    Rent
-                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-violet-300">Rent</span>
                   <span className="mt-1 block font-mono text-sm font-black text-violet-200">
                     -{formatCents(rentTotalCents)}
                   </span>
                 </div>
                 <div className="rounded-xl border border-emerald-900/70 bg-emerald-950/15 p-3">
-                  <span className="text-[8px] font-black uppercase tracking-wider text-emerald-400">
-                    Extra Income
-                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-emerald-400">Extra Income</span>
                   <span className="mt-1 block font-mono text-sm font-black text-emerald-300">
                     +{formatCents(financials.extraIncomeCents)}
                   </span>
                 </div>
                 <div className="rounded-xl border border-rose-900/70 bg-rose-950/15 p-3">
-                  <span className="text-[8px] font-black uppercase tracking-wider text-rose-400">
-                    Other Expenses
-                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-rose-400">Other Expenses</span>
                   <span className="mt-1 block font-mono text-sm font-black text-rose-300">
                     -{formatCents(otherExpensesTotalCents)}
                   </span>
@@ -551,9 +550,7 @@ export function MobileCalendarView() {
                   )}
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-800 pt-2">
-                  <span className="font-display text-xs font-black uppercase tracking-wider text-slate-100">
-                    Net Balance
-                  </span>
+                  <span className="font-display text-xs font-black uppercase tracking-wider text-slate-100">Net Balance</span>
                   {financials.isTaxConfigured ? (
                     <span
                       className={`font-mono text-base font-black ${
@@ -563,9 +560,7 @@ export function MobileCalendarView() {
                       {formatCents(netBalanceCents)}
                     </span>
                   ) : (
-                    <span className="text-[9px] font-black uppercase text-amber-400">
-                      Configuration Required
-                    </span>
+                    <span className="text-[9px] font-black uppercase text-amber-400">Configuration Required</span>
                   )}
                 </div>
               </div>
@@ -590,9 +585,7 @@ export function MobileCalendarView() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">
-                      Property Status
-                    </span>
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Property Status</span>
                     <span className="mt-1 block truncate text-sm font-black uppercase text-slate-100">
                       {profitabilityLabel}
                     </span>
@@ -600,7 +593,7 @@ export function MobileCalendarView() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setMainViewMode('analytics')}
+                  onClick={openSelectedPropertyReports}
                   className="flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950 px-3 text-[9px] font-black uppercase tracking-wider text-cyan-300"
                 >
                   <BarChart3 className="h-3.5 w-3.5" /> Reports
