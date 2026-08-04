@@ -38,8 +38,9 @@ export function ExportImportModal() {
   const activityHistory = useDashboardStore((state) => state.activityHistory);
   const importBackupData = useDashboardStore((state) => state.importBackupData);
 
+  const locations = usePropertyStore((state) => state.locations);
   const properties = usePropertyStore((state) => state.properties);
-  const replaceProperties = usePropertyStore((state) => state.replaceProperties);
+  const replaceCatalog = usePropertyStore((state) => state.replaceCatalog);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importPreview, setImportPreview] = useState<BackupData | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function ExportImportModal() {
   const exportBackup = (includePii: boolean) => {
     exportJsonBackup(
       taxConfiguration,
+      locations,
       properties,
       bookings,
       expenses,
@@ -117,12 +119,12 @@ export function ExportImportModal() {
 
     openConfirmation({
       title: 'Replace Current Application Data?',
-      message: `Import ${importPreview.bookings.length} bookings, ${importPreview.expenses.length} expenses, ${importPreview.extraIncomes.length} extra-income records and ${importPreview.properties?.length ?? properties.length} properties. Current data will be replaced.`,
+      message: `Import ${importPreview.locations?.length ?? locations.length} locations, ${importPreview.properties?.length ?? properties.length} properties, ${importPreview.bookings.length} bookings, ${importPreview.expenses.length} expenses and ${importPreview.extraIncomes.length} extra-income records. Current data will be replaced.`,
       confirmText: 'Import & Overwrite',
       variant: 'danger',
       onConfirm: () => {
         if (importPreview.properties?.length) {
-          replaceProperties(importPreview.properties);
+          replaceCatalog(importPreview.locations, importPreview.properties);
         }
         importBackupData(importPreview);
         setImportPreview(null);
@@ -232,7 +234,7 @@ export function ExportImportModal() {
                       Privacy-Safe JSON Backup
                     </span>
                     <p className="text-[11px] text-slate-400">
-                      Full operational structure with anonymized guests
+                      Locations, properties and operational data with anonymized guests
                     </p>
                   </div>
                 </div>
@@ -253,7 +255,7 @@ export function ExportImportModal() {
                       Full Restorable JSON Backup
                     </span>
                     <p className="text-[11px] text-slate-400">
-                      Includes guest details required for a complete restore
+                      Includes custom locations and guest details for complete restore
                     </p>
                   </div>
                 </div>
@@ -310,7 +312,11 @@ export function ExportImportModal() {
                       {importPreview.containsPii ? 'Contains PII' : 'Anonymized'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 sm:grid-cols-5">
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
+                      <span className="block text-[9px] uppercase text-slate-500">Locations</span>
+                      <strong>{importPreview.locations?.length ?? 'Legacy'}</strong>
+                    </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
                       <span className="block text-[9px] uppercase text-slate-500">Properties</span>
                       <strong>{importPreview.properties?.length ?? 'Legacy'}</strong>
