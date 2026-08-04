@@ -3,6 +3,8 @@ import { DashboardHeader } from './dashboard/DashboardHeader';
 import { TaxConfigurationGate } from './dashboard/TaxConfigurationGate';
 import { PropertyCalendarGrid } from './calendar/PropertyCalendarGrid';
 import { FinancialGrid } from './finance/FinancialGrid';
+import { ReportsDashboard } from './analytics/ReportsDashboard';
+import { useDashboardStore } from '../store/useDashboardStore';
 
 import { BookingModal } from './booking/BookingModal';
 import { TaxConfigurationModal } from './dashboard/TaxConfigurationModal';
@@ -17,6 +19,9 @@ import { ToastContainer } from './common/ToastContainer';
 import { NativeSelectEnhancer } from './common/NativeSelectEnhancer';
 
 export function AppShell() {
+  const mainViewMode = useDashboardStore((state) => state.mainViewMode);
+  const isReportsView = mainViewMode === 'analytics';
+
   return (
     <div className="w-full h-[100dvh] flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans select-none antialiased">
       <NativeSelectEnhancer />
@@ -29,10 +34,13 @@ export function AppShell() {
         {/* Tax Warning Gate Banner */}
         <TaxConfigurationGate />
 
-        {/* Viewport Calendar Grid & Aligned Financial Ledger */}
-        <PropertyCalendarGrid>
-          <FinancialGrid />
-        </PropertyCalendarGrid>
+        {isReportsView ? (
+          <ReportsDashboard />
+        ) : (
+          <PropertyCalendarGrid>
+            <FinancialGrid />
+          </PropertyCalendarGrid>
+        )}
       </main>
 
       {/* Global Application Modals & Sheets */}
