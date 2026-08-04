@@ -1,19 +1,16 @@
-import { addDays, parseISO, format } from 'date-fns';
+import { addDays } from 'date-fns';
 import { Booking } from '../types';
 import { calculateNights, toDateString, parseDateString } from './dateUtilities';
 
 export interface OccupiedNightInfo {
   dateStr: string;
   year: number;
-  month: number; // 1-12
-  nightIndex: number; // 1-based index e.g. 1, 2, 3
+  month: number;
+  nightIndex: number;
   totalNights: number;
-  allocatedRevenueCents: number; // Nightly rate - proportional discount + (cleaning fee if check-in)
+  allocatedRevenueCents: number;
 }
 
-/**
- * Breakdown of a booking's occupied nights and financial allocation per night.
- */
 export function getBookingOccupiedNights(booking: Booking): OccupiedNightInfo[] {
   if (!booking.checkInDate || !booking.checkOutDate || booking.status === 'cancelled') {
     return [];
@@ -28,26 +25,21 @@ export function getBookingOccupiedNights(booking: Booking): OccupiedNightInfo[] 
   const nights: OccupiedNightInfo[] = [];
   let currentDate = parseDateString(booking.checkInDate);
 
-  for (let i = 0; i < totalNights; i++) {
+  for (let index = 0; index < totalNights; index += 1) {
     const dateStr = toDateString(currentDate);
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
-
-    // Apply remainder discount to first night
-    const discountForThisNight = perNightDiscount + (i === 0 ? discountRemainder : 0);
+    const discountForThisNight = perNightDiscount + (index === 0 ? discountRemainder : 0);
     let nightRevenue = booking.nightlyRateCents - discountForThisNight;
-    if (nightRevenue < 0) nightRevenue = 0;
 
-    // Cleaning fee allocated to check-in night
-    if (i === 0) {
-      nightRevenue += booking.cleaningFeeCents || 0;
-    }
+    if (nightRevenue < 0) nightRevenue = 0;
+    if (index === 0) nightRevenue += booking.cleaningFeeCents || 0;
 
     nights.push({
       dateStr,
       year,
       month,
-      nightIndex: i + 1,
+      nightIndex: index + 1,
       totalNights,
       allocatedRevenueCents: nightRevenue,
     });
@@ -58,9 +50,6 @@ export function getBookingOccupiedNights(booking: Booking): OccupiedNightInfo[] 
   return nights;
 }
 
-/**
- * Calculates total revenue allocated to a specific property and month across all active bookings.
- */
 export function calculateMonthlyPropertyBookingRevenue(
   propertyId: string,
   year: number,
@@ -68,7 +57,7 @@ export function calculateMonthlyPropertyBookingRevenue(
   allBookings: Booking[]
 ): number {
   const propertyBookings = allBookings.filter(
-    (b) => b.propertyId === propertyId && b.status !== 'cancelled'
+    (booking) => booking.propertyId === propertyId && booking.status !== 'cancelled'
   );
 
   let totalCents = 0;
@@ -85,23 +74,15 @@ export function calculateMonthlyPropertyBookingRevenue(
   return totalCents;
 }
 
-/**
- * Calculates daily total revenue allocated across ALL properties for a single calendar date.
- */
-export function calculateDailyTotalRevenue(
-  dateStr: string,
-  allBookings: Booking[]
-): number {
+export function calculateDailyTotalRevenue(dateStr: string, allBookings: Booking[]): number {
   let dailyTotalCents = 0;
-
-  const activeBookings = allBookings.filter((b) => b.status !== 'cancelled');
+  const activeBookings = allBookings.filter((booking) => booking.status !== 'cancelled');
 
   for (const booking of activeBookings) {
-    const nights = getBookingOccupiedNights(booking);
-    const matchingNight = nights.find((n) => n.dateStr === dateStr);
-    if (matchingNight) {
-      dailyTotalCents += matchingNight.allocatedRevenueCents;
-    }
+    const matchingNight = getBookingOccupiedNights(booking).find(
+      (night) => night.dateStr === dateStr
+    );
+    if (matchingNight) dailyTotalCents += matchingNight.allocatedRevenueCents;
   }
 
   return dailyTotalCents;
@@ -116,21 +97,21 @@ export interface CellBookingState {
   totalNights: number;
 }
 
-/**
- * Gets cell booking state for a property on a specific date.
- */
 export function getCellBookingState(
   propertyId: string,
   dateStr: string,
   allBookings: Booking[]
 ): CellBookingState {
   const activeBookings = allBookings.filter(
-    (b) => b.propertyId === propertyId && b.status !== 'cancelled'
+    (booking) => booking.propertyId === propertyId && booking.status !== 'cancelled'
   );
 
+  // Occupied nights and same-day arrivals take precedence over a departing booking.
+  // This prevents a checkout from hiding a new check-in on turnover days.
   for (const booking of activeBookings) {
-    const nights = getBookingOccupiedNights(booking);
-    const nightMatch = nights.find((n) => n.dateStr === dateStr);
+    const nightMatch = getBookingOccupiedNights(booking).find(
+      (night) => night.dateStr === dateStr
+    );
 
     if (nightMatch) {
       return {
@@ -142,19 +123,20 @@ export function getCellBookingState(
         totalNights: nightMatch.totalNights,
       };
     }
+  }
 
-    // Check if it's the check-out date (departure date)
-    if (booking.checkOutDate === dateStr) {
-      // If no other booking starts on this date, we note checkOut state
-      return {
-        booking,
-        isOccupied: false,
-        isCheckIn: false,
-        isCheckOut: true,
-        nightIndex: calculateNights(booking.checkInDate, booking.checkOutDate),
-        totalNights: calculateNights(booking.checkInDate, booking.checkOutDate),
-      };
-    }
+  for (const booking of activeBookings) {
+    if (booking.checkOutDate !== dateStr) continue;
+    const totalNights = calculateNights(booking.checkInDate, booking.checkOutDate);
+
+    return {
+      booking,
+      isOccupied: false,
+      isCheckIn: false,
+      isCheckOut: true,
+      nightIndex: totalNights,
+      totalNights,
+    };
   }
 
   return {
