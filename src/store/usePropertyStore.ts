@@ -3,6 +3,8 @@ import { ALL_PROPERTIES, DEFAULT_PROPERTIES, LOCATIONS } from '../config/locatio
 import { PropertyConfig } from '../types';
 
 const STORAGE_KEY = 'short_let_properties_v1';
+let activeCacheSource: PropertyConfig[] | null = null;
+let activeCacheResult: PropertyConfig[] = [];
 
 function normalizeProperty(property: Partial<PropertyConfig>): PropertyConfig | null {
   if (!property.id || !property.name || !property.locationId) return null;
@@ -26,6 +28,8 @@ function synchronizeLegacyCatalog(properties: PropertyConfig[]) {
       ...activeProperties.filter((property) => property.locationId === location.id)
     );
   }
+  activeCacheSource = properties;
+  activeCacheResult = activeProperties;
 }
 
 function loadProperties(): PropertyConfig[] {
@@ -50,6 +54,9 @@ function loadProperties(): PropertyConfig[] {
     next = DEFAULT_PROPERTIES.map((property) => ({ ...property }));
   }
 
+  if (!next.some((property) => property.active !== false) && next[0]) {
+    next[0] = { ...next[0], active: true };
+  }
   synchronizeLegacyCatalog(next);
   return next;
 }
@@ -109,13 +116,19 @@ export const usePropertyStore = create<PropertyStoreState>((set, get) => ({
     const cleanName = updates.name.trim();
     if (!cleanName || !LOCATIONS.some((location) => location.id === updates.locationId)) return;
 
-    const updated = get().properties.map((property) =>
+    const current = get().properties;
+    const otherActiveExists = current.some(
+      (property) => property.id !== id && property.active !== false
+    );
+    const safeActive = updates.active || otherActiveExists;
+
+    const updated = current.map((property) =>
       property.id === id
         ? {
             ...property,
             name: cleanName.toUpperCase(),
             locationId: updates.locationId,
-            active: updates.active,
+            active: safeActive,
           }
         : property
     );
@@ -131,6 +144,9 @@ export const usePropertyStore = create<PropertyStoreState>((set, get) => ({
     const next = normalized.length > 0
       ? normalized
       : DEFAULT_PROPERTIES.map((property) => ({ ...property }));
+    if (!next.some((property) => property.active !== false) && next[0]) {
+      next[0] = { ...next[0], active: true };
+    }
     saveProperties(next);
     set({ properties: next });
   },
@@ -143,5 +159,8 @@ export const usePropertyStore = create<PropertyStoreState>((set, get) => ({
 }));
 
 export function getActiveProperties(properties: PropertyConfig[]): PropertyConfig[] {
-  return properties.filter((property) => property.active !== false);
+  if (activeCacheSource === properties) return activeCacheResult;
+  activeCacheSource = properties;
+  activeCacheResult = properties.filter((property) => property.active !== false);
+  return activeCacheResult;
 }
