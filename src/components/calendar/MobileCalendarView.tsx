@@ -3,14 +3,13 @@ import { format } from 'date-fns';
 import {
   ArrowRight,
   BarChart3,
-  BedDouble,
   Building2,
   CalendarPlus,
   CheckCircle2,
   CircleDot,
   Lock,
+  LogOut,
   Pencil,
-  ReceiptText,
   TrendingDown,
   TrendingUp,
   WalletCards,
@@ -30,43 +29,46 @@ import { formatCents } from '../../utils/currency';
 import { isRentExpense, sumExpenses } from '../../utils/expenseUtilities';
 import { CustomSelect } from '../common/CustomSelect';
 
+const MOBILE_DAY_ROW_HEIGHT = 58;
+
 const channelMeta = {
-  airbnb: { label: 'Airbnb', badge: 'bg-rose-950 text-rose-300 border-rose-800' },
-  booking_com: { label: 'Booking.com', badge: 'bg-blue-950 text-blue-300 border-blue-800' },
-  direct: { label: 'Direct', badge: 'bg-emerald-950 text-emerald-300 border-emerald-800' },
-  vrbo: { label: 'VRBO', badge: 'bg-violet-950 text-violet-300 border-violet-800' },
+  airbnb: {
+    label: 'Airbnb',
+    badge: 'bg-rose-950 text-rose-300 border-rose-800',
+    block: 'border-rose-700/80 bg-rose-950/85',
+    rail: 'border-rose-700/80 bg-rose-900/70',
+  },
+  booking_com: {
+    label: 'Booking.com',
+    badge: 'bg-blue-950 text-blue-300 border-blue-800',
+    block: 'border-blue-700/80 bg-blue-950/85',
+    rail: 'border-blue-700/80 bg-blue-900/70',
+  },
+  direct: {
+    label: 'Direct',
+    badge: 'bg-emerald-950 text-emerald-300 border-emerald-800',
+    block: 'border-emerald-700/80 bg-emerald-950/85',
+    rail: 'border-emerald-700/80 bg-emerald-900/70',
+  },
+  vrbo: {
+    label: 'VRBO',
+    badge: 'bg-violet-950 text-violet-300 border-violet-800',
+    block: 'border-violet-700/80 bg-violet-950/85',
+    rail: 'border-violet-700/80 bg-violet-900/70',
+  },
 } as const;
 
-type MobileScheduleSegment =
-  | {
-      type: 'booking';
-      key: string;
-      booking: Booking;
-      visibleStartDate: string;
-      visibleEndDate: string;
-    }
-  | {
-      type: 'available';
-      key: string;
-      startDate: string;
-      endDate: string;
-      dayCount: number;
-    };
-
-function formatInclusiveRange(startDate: string, endDate: string) {
-  const start = parseDateString(startDate);
-  const end = parseDateString(endDate);
-
-  if (startDate === endDate) return format(start, 'd MMM');
-  if (start.getMonth() === end.getMonth()) {
-    return `${format(start, 'd')}–${format(end, 'd MMM')}`;
-  }
-  return `${format(start, 'd MMM')}–${format(end, 'd MMM')}`;
+interface MobileBookingSpan {
+  key: string;
+  booking: Booking;
+  startIndex: number;
+  visibleDates: string[];
 }
 
 function formatBookingRange(booking: Booking) {
   const start = parseDateString(booking.checkInDate);
   const end = parseDateString(booking.checkOutDate);
+
   if (start.getMonth() === end.getMonth()) {
     return `${format(start, 'd')}–${format(end, 'd MMM')}`;
   }
@@ -112,64 +114,41 @@ export function MobileCalendarView() {
     };
   });
 
-  const scheduleSegments = useMemo<MobileScheduleSegment[]>(() => {
+  const bookingSpans = useMemo<MobileBookingSpan[]>(() => {
     if (!selectedPropertyId) return [];
 
-    const segments: MobileScheduleSegment[] = [];
-    let dayIndex = 0;
+    const spans: MobileBookingSpan[] = [];
+    const processedBookingIds = new Set<string>();
 
-    while (dayIndex < days.length) {
-      const currentDay = days[dayIndex];
-      const currentState = getCellBookingState(selectedPropertyId, currentDay.dateStr, bookings);
+    days.forEach((day, startIndex) => {
+      const state = getCellBookingState(selectedPropertyId, day.dateStr, bookings);
+      if (!state.isOccupied || !state.booking || processedBookingIds.has(state.booking.id)) return;
 
-      if (currentState.isOccupied && currentState.booking) {
-        const booking = currentState.booking;
-        const startIndex = dayIndex;
-        dayIndex += 1;
+      const booking = state.booking;
+      const visibleDates: string[] = [];
+      let cursor = startIndex;
 
-        while (dayIndex < days.length) {
-          const nextState = getCellBookingState(
-            selectedPropertyId,
-            days[dayIndex].dateStr,
-            bookings
-          );
-          if (!nextState.isOccupied || nextState.booking?.id !== booking.id) break;
-          dayIndex += 1;
-        }
-
-        segments.push({
-          type: 'booking',
-          key: `booking-${booking.id}-${currentDay.dateStr}`,
-          booking,
-          visibleStartDate: days[startIndex].dateStr,
-          visibleEndDate: days[dayIndex - 1].dateStr,
-        });
-        continue;
-      }
-
-      const availableStartIndex = dayIndex;
-      dayIndex += 1;
-
-      while (dayIndex < days.length) {
-        const nextState = getCellBookingState(
+      while (cursor < days.length) {
+        const cursorState = getCellBookingState(
           selectedPropertyId,
-          days[dayIndex].dateStr,
+          days[cursor].dateStr,
           bookings
         );
-        if (nextState.isOccupied) break;
-        dayIndex += 1;
+        if (!cursorState.isOccupied || cursorState.booking?.id !== booking.id) break;
+        visibleDates.push(days[cursor].dateStr);
+        cursor += 1;
       }
 
-      segments.push({
-        type: 'available',
-        key: `available-${days[availableStartIndex].dateStr}`,
-        startDate: days[availableStartIndex].dateStr,
-        endDate: days[dayIndex - 1].dateStr,
-        dayCount: dayIndex - availableStartIndex,
+      processedBookingIds.add(booking.id);
+      spans.push({
+        key: `mobile-booking-${booking.id}-${day.dateStr}`,
+        booking,
+        startIndex,
+        visibleDates,
       });
-    }
+    });
 
-    return segments;
+    return spans;
   }, [bookings, days, selectedPropertyId]);
 
   if (!selectedProperty || !selectedPropertyId) {
@@ -271,13 +250,13 @@ export function MobileCalendarView() {
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-[max(6rem,env(safe-area-inset-bottom))] no-scrollbar">
         <section>
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 px-1 py-2.5 backdrop-blur">
+          <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 px-1 py-2.5 backdrop-blur">
             <div>
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-300">
                 Monthly Schedule
               </p>
               <p className="text-[9px] text-slate-600">
-                Consecutive nights are grouped into one reservation.
+                Booking blocks span their occupied nights like the desktop calendar.
               </p>
             </div>
             <button
@@ -289,84 +268,149 @@ export function MobileCalendarView() {
             </button>
           </div>
 
-          <div className="space-y-2 py-2">
-            {scheduleSegments.map((segment) => {
-              if (segment.type === 'available') {
-                return (
-                  <button
-                    key={segment.key}
-                    type="button"
-                    onClick={() => openNewBooking(segment.startDate)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-emerald-900/70 bg-emerald-950/10 px-3 py-3 text-left"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-11 min-w-16 flex-shrink-0 flex-col items-center justify-center rounded-lg border border-emerald-900 bg-slate-950 text-emerald-300">
-                        <span className="font-mono text-[11px] font-black">
-                          {formatInclusiveRange(segment.startDate, segment.endDate)}
-                        </span>
-                        <span className="text-[7px] font-black uppercase tracking-wider text-emerald-500">
-                          {segment.dayCount} {segment.dayCount === 1 ? 'day' : 'days'}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <CircleDot className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
-                          <span className="text-xs font-black uppercase tracking-wide text-slate-200">
-                            Available
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[9px] text-slate-600">Tap to create a reservation</p>
-                      </div>
-                    </div>
-                    <CalendarPlus className="h-4 w-4 flex-shrink-0 text-cyan-500" />
-                  </button>
-                );
-              }
+          <div
+            className="relative grid grid-cols-[58px_minmax(0,1fr)] bg-slate-950"
+            style={{ gridTemplateRows: `repeat(${days.length}, ${MOBILE_DAY_ROW_HEIGHT}px)` }}
+          >
+            {days.map((day, index) => {
+              const state = getCellBookingState(selectedPropertyId, day.dateStr, bookings);
 
-              const booking = segment.booking;
+              return (
+                <React.Fragment key={day.dateStr}>
+                  <div
+                    style={{ gridColumn: 1, gridRow: index + 1 }}
+                    className={`z-[1] flex flex-col items-center justify-center border-b border-r ${
+                      day.isToday
+                        ? 'border-[#ff3e00]/50 bg-[#ff3e00]/10 text-[#ff3e00]'
+                        : day.isWeekend
+                          ? 'border-slate-800 bg-amber-950/15 text-amber-300'
+                          : 'border-slate-800 bg-slate-900/70 text-slate-300'
+                    }`}
+                  >
+                    <span className="font-mono text-sm font-black leading-none">{day.dayNumber}</span>
+                    <span className="mt-1 text-[8px] font-black uppercase tracking-wider">{day.weekday}</span>
+                  </div>
+
+                  <div
+                    style={{ gridColumn: 2, gridRow: index + 1 }}
+                    className={`border-b border-slate-800 ${
+                      day.isToday ? 'bg-[#ff3e00]/[0.03]' : day.isWeekend ? 'bg-slate-900/20' : 'bg-slate-950'
+                    }`}
+                  >
+                    {!state.isOccupied && (
+                      state.isCheckOut && state.booking ? (
+                        <div className="flex h-full items-center justify-between gap-2 px-2">
+                          <button
+                            type="button"
+                            onClick={() => openModal('booking_edit', { bookingId: state.booking?.id })}
+                            className="flex min-w-0 items-center gap-2 text-left"
+                          >
+                            <LogOut className="h-3.5 w-3.5 flex-shrink-0 text-amber-400" />
+                            <div className="min-w-0">
+                              <span className="block truncate text-[10px] font-black uppercase text-slate-300">
+                                Checkout · {state.booking.guestName}
+                              </span>
+                              <span className="mt-0.5 block text-[8px] font-bold text-amber-400/80">
+                                {state.booking.checkOutTime}
+                              </span>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openNewBooking(day.dateStr)}
+                            className="flex h-8 flex-shrink-0 items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 text-[8px] font-black uppercase text-slate-300"
+                          >
+                            <CalendarPlus className="h-3 w-3" /> Book
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openNewBooking(day.dateStr)}
+                          className="flex h-full w-full items-center justify-between gap-3 px-3 text-left hover:bg-cyan-950/10"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <CircleDot className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              Available
+                            </span>
+                          </div>
+                          <CalendarPlus className="h-4 w-4 flex-shrink-0 text-cyan-600" />
+                        </button>
+                      )
+                    )}
+                  </div>
+                </React.Fragment>
+              );
+            })}
+
+            {bookingSpans.map((span) => {
+              const booking = span.booking;
               const channel = channelMeta[booking.channel];
               const totalNights = calculateNights(booking.checkInDate, booking.checkOutDate);
               const accommodationTotal = booking.nightlyRateCents * totalNights - booking.discountCents;
+              const compact = span.visibleDates.length === 1;
 
               return (
                 <button
-                  key={segment.key}
+                  key={span.key}
                   type="button"
                   onClick={() => openModal('booking_edit', { bookingId: booking.id })}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-left shadow-sm"
+                  style={{
+                    gridColumn: 2,
+                    gridRow: `${span.startIndex + 1} / span ${span.visibleDates.length}`,
+                  }}
+                  className={`z-10 m-[2px] min-h-0 overflow-hidden rounded-lg border text-left shadow-lg ${channel.block}`}
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-12 min-w-[76px] flex-shrink-0 flex-col items-center justify-center rounded-lg border border-[#ff3e00]/50 bg-[#ff3e00]/8 text-[#ff3e00]">
-                      <span className="font-mono text-[11px] font-black">
-                        {formatBookingRange(booking)}
-                      </span>
-                      <span className="text-[7px] font-black uppercase tracking-wider">
-                        {totalNights} {totalNights === 1 ? 'night' : 'nights'}
-                      </span>
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-emerald-400" />
-                        <span className="truncate text-xs font-black uppercase tracking-wide text-slate-100">
+                  <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_82px]">
+                    <div className="flex min-h-0 min-w-0 flex-col justify-center overflow-hidden px-3 py-2">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-emerald-300" />
+                        <span className="truncate text-[10px] font-black uppercase tracking-wide text-white">
                           {booking.guestName}
                         </span>
+                      </div>
+
+                      <div className="mt-1 flex min-w-0 items-center gap-1.5">
                         <span
-                          className={`flex-shrink-0 rounded-md border px-1.5 py-0.5 text-[7px] font-black uppercase ${channel.badge}`}
+                          className={`flex-shrink-0 rounded border px-1.5 py-0.5 text-[7px] font-black uppercase ${channel.badge}`}
                         >
                           {channel.label}
                         </span>
+                        {!compact && (
+                          <span className="truncate text-[8px] font-bold text-slate-300">
+                            {formatBookingRange(booking)}
+                          </span>
+                        )}
                       </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] font-semibold text-slate-500">
-                        <span>{booking.checkInTime} → {booking.checkOutTime}</span>
-                        <span>•</span>
-                        <span>{formatCents(booking.nightlyRateCents)}/night</span>
-                        <span>•</span>
-                        <span>{formatCents(accommodationTotal)}</span>
-                      </div>
+
+                      {!compact && (
+                        <div className="mt-1.5 space-y-0.5 text-[8px] font-semibold text-slate-300/80">
+                          <p>{booking.checkInTime} → {booking.checkOutTime}</p>
+                          <p>{totalNights} nights · {formatCents(accommodationTotal)}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`flex min-h-0 flex-col border-l ${channel.rail}`}>
+                      {span.visibleDates.map((dateStr) => {
+                        const state = getCellBookingState(selectedPropertyId, dateStr, bookings);
+                        return (
+                          <div
+                            key={dateStr}
+                            className="flex min-h-0 flex-1 items-center justify-between gap-1 border-b border-white/10 px-2 last:border-b-0"
+                          >
+                            <span className="font-mono text-[9px] font-black text-white">
+                              {state.nightIndex}
+                            </span>
+                            <span className="font-mono text-[8px] font-black text-white/90">
+                              {formatCents(booking.nightlyRateCents)}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                  <ArrowRight className="h-4 w-4 flex-shrink-0 text-slate-500" />
                 </button>
               );
             })}
