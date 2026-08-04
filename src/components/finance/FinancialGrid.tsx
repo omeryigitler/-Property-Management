@@ -1,23 +1,27 @@
 import React from 'react';
 import { Lock } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
-import { ALL_PROPERTIES } from '../../config/locations';
-import { calculateAggregatedFinancials } from '../../utils/financeCalculations';
+import { getActiveProperties, usePropertyStore } from '../../store/usePropertyStore';
+import { calculatePortfolioFinancials } from '../../services/portfolioFinancialService';
 import { formatCents } from '../../utils/currency';
 import { isRentExpense, sumExpenses } from '../../utils/expenseUtilities';
 import { PropertyFinanceColumn } from './PropertyFinanceColumn';
 import { ProfitabilityReport } from './ProfitabilityReport';
 
 export function FinancialGrid() {
-  const selectedMonth = useDashboardStore((s) => s.selectedMonth);
-  const selectedYear = useDashboardStore((s) => s.selectedYear);
-  const taxConfig = useDashboardStore((s) => s.taxConfiguration);
-  const bookings = useDashboardStore((s) => s.bookings);
-  const expenses = useDashboardStore((s) => s.expenses);
-  const extraIncomes = useDashboardStore((s) => s.extraIncomes);
-  const openModal = useDashboardStore((s) => s.openModal);
+  const selectedMonth = useDashboardStore((state) => state.selectedMonth);
+  const selectedYear = useDashboardStore((state) => state.selectedYear);
+  const taxConfig = useDashboardStore((state) => state.taxConfiguration);
+  const bookings = useDashboardStore((state) => state.bookings);
+  const expenses = useDashboardStore((state) => state.expenses);
+  const extraIncomes = useDashboardStore((state) => state.extraIncomes);
+  const openModal = useDashboardStore((state) => state.openModal);
+  const properties = usePropertyStore((state) => state.properties);
+  const activeProperties = getActiveProperties(properties);
+  const activePropertyIds = new Set(activeProperties.map((property) => property.id));
 
-  const agg = calculateAggregatedFinancials(
+  const aggregate = calculatePortfolioFinancials(
+    activeProperties.map((property) => property.id),
     selectedYear,
     selectedMonth,
     bookings,
@@ -27,10 +31,13 @@ export function FinancialGrid() {
   );
 
   const currentExpenses = expenses.filter(
-    (expense) => expense.year === selectedYear && expense.month === selectedMonth
+    (expense) =>
+      expense.year === selectedYear &&
+      expense.month === selectedMonth &&
+      activePropertyIds.has(expense.propertyId)
   );
   const totalRentCents = sumExpenses(currentExpenses.filter(isRentExpense));
-  const totalOtherExpensesCents = agg.combinedExpenseCents - totalRentCents;
+  const totalOtherExpensesCents = aggregate.combinedExpenseCents - totalRentCents;
 
   return (
     <div className="w-max min-w-full border-t-2 border-[#ff3e00] bg-slate-950 mt-2 select-none">
@@ -52,25 +59,25 @@ export function FinancialGrid() {
           <div className="ledger-balance-row flex items-center border-b border-slate-800 p-2.5 font-display font-black text-slate-100">NET BALANCE</div>
         </div>
 
-        {ALL_PROPERTIES.map((prop) => (
+        {activeProperties.map((property) => (
           <div
-            key={prop.id}
+            key={property.id}
             className="dashboard-property-column"
             onClick={() => {
               if (window.innerWidth < 768) {
-                openModal('mobile_property_finance', { propertyId: prop.id });
+                openModal('mobile_property_finance', { propertyId: property.id });
               }
             }}
           >
-            <PropertyFinanceColumn propertyId={prop.id} />
+            <PropertyFinanceColumn propertyId={property.id} />
           </div>
         ))}
 
         <div className="dashboard-total-column flex flex-col border-r border-slate-800 bg-yellow-950/60 font-mono text-xs">
           <div className="ledger-booking-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/90 p-2 font-black text-emerald-300">
             <span className="font-sans text-[9px] font-bold uppercase tracking-wider text-yellow-200/80">NET BOOKING</span>
-            <span>{formatCents(agg.combinedNetBookingIncomeCents)}</span>
-            <span className="text-[9px] font-medium text-slate-400">Gross: {formatCents(agg.combinedGrossBookingIncomeCents)}</span>
+            <span>{formatCents(aggregate.combinedNetBookingIncomeCents)}</span>
+            <span className="text-[9px] font-medium text-slate-400">Gross: {formatCents(aggregate.combinedGrossBookingIncomeCents)}</span>
           </div>
 
           <div className="ledger-rent-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 p-2 font-black text-violet-300">
@@ -80,7 +87,7 @@ export function FinancialGrid() {
 
           <div className="ledger-extra-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 p-2 font-black text-emerald-400">
             <span className="font-sans text-[9px] font-bold uppercase tracking-wider text-yellow-200/80">TOTAL EXTRA</span>
-            <span>+{formatCents(agg.combinedExtraIncomeCents)}</span>
+            <span>+{formatCents(aggregate.combinedExtraIncomeCents)}</span>
           </div>
 
           <div className="ledger-expenses-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 p-2 font-black text-rose-300">
@@ -89,12 +96,12 @@ export function FinancialGrid() {
           </div>
 
           <div className="ledger-total-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/90 p-2 font-black text-rose-300">
-            <span>{formatCents(agg.combinedExpenseCents)}</span>
+            <span>{formatCents(aggregate.combinedExpenseCents)}</span>
           </div>
 
           <div className="ledger-tax-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/90 p-2 font-black text-amber-300">
-            {agg.isTaxConfigured ? (
-              <span>{formatCents(agg.combinedCalculatedTaxesCents)}</span>
+            {aggregate.isTaxConfigured ? (
+              <span>{formatCents(aggregate.combinedCalculatedTaxesCents)}</span>
             ) : (
               <span className="flex items-center gap-1 font-sans text-[9px] font-bold text-amber-400">
                 <Lock className="h-3 w-3" /> Locked
@@ -103,9 +110,9 @@ export function FinancialGrid() {
           </div>
 
           <div className="ledger-balance-row flex flex-col justify-center overflow-hidden border-b border-yellow-800/80 bg-yellow-950/95 p-2.5 font-black text-sm">
-            {agg.isTaxConfigured ? (
-              <span className={(agg.combinedNetBalanceCents ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                {formatCents(agg.combinedNetBalanceCents)}
+            {aggregate.isTaxConfigured ? (
+              <span className={(aggregate.combinedNetBalanceCents ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                {formatCents(aggregate.combinedNetBalanceCents)}
               </span>
             ) : (
               <span className="font-sans text-[9px] font-bold uppercase text-amber-400">Configuration Required</span>
