@@ -21,6 +21,8 @@ export interface Booking {
   checkInDate: string;
   checkOutDate: string;
   nightlyRateCents: number;
+  /** Exact accommodation total before discount. Present when the total-price input was used. */
+  accommodationTotalCents?: number;
   adults: number;
   children: number;
   status: BookingStatus;
@@ -153,6 +155,7 @@ export interface ActivityRecord {
     | 'extra_income_deleted'
     | 'tax_config_updated'
     | 'property_saved'
+    | 'location_saved'
     | 'backup_imported'
     | 'ical_imported'
     | 'pii_anonymized'
@@ -224,6 +227,7 @@ export interface BackupData {
   exportedAt: string;
   containsPii: boolean;
   taxConfiguration: TaxConfiguration;
+  locations?: LocationConfig[];
   properties?: PropertyConfig[];
   bookings: Booking[];
   expenses: Expense[];
@@ -247,6 +251,7 @@ export interface PersistedState {
   selectedMonth: number;
   selectedYear: number;
   taxConfiguration: TaxConfiguration;
+  locations?: LocationConfig[];
   properties?: PropertyConfig[];
   bookings: Booking[];
   expenses: Expense[];
