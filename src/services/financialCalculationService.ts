@@ -8,7 +8,6 @@ import {
   Channel,
   CommissionMode,
   CommissionBasis,
-  FixedCommissionAllocationRule,
   TaxTreatment,
 } from '../types';
 import { ALL_PROPERTIES } from '../config/locations';
@@ -59,9 +58,10 @@ export function calculateBookingRevenueAndCommission(
 
   if (booking.commissionMode === 'percentage') {
     let basisCents = grossAccommodationRevenueCents;
-    if (commissionBasis === 'accommodation_plus_fees') {
-      basisCents = grossBookingRevenueCents;
-    } else if (commissionBasis === 'gross_after_discounts') {
+    if (
+      commissionBasis === 'accommodation_plus_fees' ||
+      commissionBasis === 'gross_after_discounts'
+    ) {
       basisCents = grossBookingRevenueCents;
     }
 
@@ -106,40 +106,34 @@ export function getBookingMonthlyAllocatedNights(
   const totalNights = calculateNights(booking.checkInDate, booking.checkOutDate);
   if (totalNights <= 0) return [];
 
-  const commBasis = taxConfig?.commissionBasis || 'accommodation_only';
+  const commissionBasis = taxConfig?.commissionBasis || 'accommodation_only';
   const fixedRule = taxConfig?.fixedCommissionAllocationRule || 'check_in_date';
+  const fullBreakdown = calculateBookingRevenueAndCommission(booking, commissionBasis);
 
-  const fullBreakdown = calculateBookingRevenueAndCommission(booking, commBasis);
-
-  // Per-night gross revenue
   const perNightGross = Math.floor(fullBreakdown.grossBookingRevenueCents / totalNights);
   const grossRemainder = fullBreakdown.grossBookingRevenueCents % totalNights;
-
-  // Percentage commission is allocated proportionally to nights
-  const perNightComm = Math.floor(fullBreakdown.otaCommissionCents / totalNights);
-  const commRemainder = fullBreakdown.otaCommissionCents % totalNights;
+  const perNightCommission = Math.floor(fullBreakdown.otaCommissionCents / totalNights);
+  const commissionRemainder = fullBreakdown.otaCommissionCents % totalNights;
 
   const result: MonthlyAllocatedNight[] = [];
   let currentDate = parseDateString(booking.checkInDate);
 
-  for (let i = 0; i < totalNights; i++) {
+  for (let index = 0; index < totalNights; index += 1) {
     const dateStr = toDateString(currentDate);
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
-
-    let nightGross = perNightGross + (i === 0 ? grossRemainder : 0);
-    let nightComm = 0;
+    const nightGross = perNightGross + (index === 0 ? grossRemainder : 0);
+    let nightCommission = 0;
 
     if (booking.commissionMode === 'percentage') {
-      nightComm = perNightComm + (i === 0 ? commRemainder : 0);
+      nightCommission = perNightCommission + (index === 0 ? commissionRemainder : 0);
     } else if (booking.commissionMode === 'fixed') {
       if (fixedRule === 'proportional_nights') {
-        nightComm = perNightComm + (i === 0 ? commRemainder : 0);
+        nightCommission = perNightCommission + (index === 0 ? commissionRemainder : 0);
       } else if (fixedRule === 'check_in_date') {
-        nightComm = i === 0 ? fullBreakdown.otaCommissionCents : 0;
+        nightCommission = index === 0 ? fullBreakdown.otaCommissionCents : 0;
       } else if (fixedRule === 'payout_date') {
-        // Default to checkout date night
-        nightComm = i === totalNights - 1 ? fullBreakdown.otaCommissionCents : 0;
+        nightCommission = index === totalNights - 1 ? fullBreakdown.otaCommissionCents : 0;
       }
     }
 
@@ -147,11 +141,11 @@ export function getBookingMonthlyAllocatedNights(
       dateStr,
       year,
       month,
-      nightIndex: i + 1,
+      nightIndex: index + 1,
       totalNights,
       grossNightRevenueCents: nightGross,
-      otaCommissionCents: nightComm,
-      netNightRevenueCents: nightGross - nightComm,
+      otaCommissionCents: nightCommission,
+      netNightRevenueCents: nightGross - nightCommission,
     });
 
     currentDate = addDays(currentDate, 1);
@@ -161,7 +155,7 @@ export function getBookingMonthlyAllocatedNights(
 }
 
 /**
- * Calculates Property Monthly Financials with strict separation of OTA Commission.
+ * Calculates property monthly financials with strict separation of OTA commission.
  */
 export function calculatePropertyFinancials(
   propertyId: string,
@@ -173,7 +167,7 @@ export function calculatePropertyFinancials(
   taxConfig: TaxConfiguration
 ): PropertyFinancials {
   const propertyBookings = bookings.filter(
-    (b) => b.propertyId === propertyId && b.status !== 'cancelled'
+    (booking) => booking.propertyId === propertyId && booking.status !== 'cancelled'
   );
 
   let grossBookingIncomeCents = 0;
@@ -183,50 +177,57 @@ export function calculatePropertyFinancials(
   let totalGuestNightsCount = 0;
 
   for (const booking of propertyBookings) {
-    const nights = getBookingMonthlyAllocatedNights(booking, taxConfig);
-    const monthNights = nights.filter((n) => n.year === year && n.month === month);
+    const monthNights = getBookingMonthlyAllocatedNights(booking, taxConfig).filter(
+      (night) => night.year === year && night.month === month
+    );
 
-    if (monthNights.length > 0) {
-      bookingCount++;
-      occupiedNightsCount += monthNights.length;
-      totalGuestNightsCount += monthNights.length * ((booking.adults || 1) + (booking.children || 0));
+    if (monthNights.length === 0) continue;
 
-      for (const n of monthNights) {
-        grossBookingIncomeCents += n.grossNightRevenueCents;
-        otaCommissionCents += n.otaCommissionCents;
-      }
+    bookingCount += 1;
+    occupiedNightsCount += monthNights.length;
+    totalGuestNightsCount +=
+      monthNights.length * ((booking.adults || 1) + (booking.children || 0));
+
+    for (const night of monthNights) {
+      grossBookingIncomeCents += night.grossNightRevenueCents;
+      otaCommissionCents += night.otaCommissionCents;
     }
   }
 
   const netBookingIncomeCents = grossBookingIncomeCents - otaCommissionCents;
-
-  // Extra Incomes
   const propertyExtraIncomes = extraIncomes.filter(
-    (e) => e.propertyId === propertyId && e.year === year && e.month === month
+    (income) =>
+      income.propertyId === propertyId && income.year === year && income.month === month
   );
-  const extraIncomeCents = propertyExtraIncomes.reduce((sum, e) => sum + e.amountCents, 0);
+  const extraIncomeCents = propertyExtraIncomes.reduce(
+    (sum, income) => sum + income.amountCents,
+    0
+  );
 
   const extraIncomeByTreatment: Record<TaxTreatment, number> = {
     accommodation_vat: 0,
     standard_vat: 0,
     vat_exempt: 0,
   };
-  for (const e of propertyExtraIncomes) {
-    extraIncomeByTreatment[e.taxTreatment] = (extraIncomeByTreatment[e.taxTreatment] || 0) + e.amountCents;
+
+  for (const income of propertyExtraIncomes) {
+    extraIncomeByTreatment[income.taxTreatment] =
+      (extraIncomeByTreatment[income.taxTreatment] || 0) + income.amountCents;
   }
 
-  // Operating Expenses (excluding OTA Commission to prevent double-deduction)
   const propertyExpenses = expenses.filter(
-    (e) => e.propertyId === propertyId && e.year === year && e.month === month
+    (expense) =>
+      expense.propertyId === propertyId && expense.year === year && expense.month === month
   );
-  const totalExpensesCents = propertyExpenses.reduce((sum, e) => sum + e.amountCents, 0);
+  const totalExpensesCents = propertyExpenses.reduce(
+    (sum, expense) => sum + expense.amountCents,
+    0
+  );
   const deductibleExpensesCents = propertyExpenses
-    .filter((e) => e.isDeductible)
-    .reduce((sum, e) => sum + e.amountCents, 0);
+    .filter((expense) => expense.isDeductible)
+    .reduce((sum, expense) => sum + expense.amountCents, 0);
 
-  const configured = isTaxConfigured(taxConfig);
-
-  if (!configured) {
+  if (!isTaxConfigured(taxConfig)) {
     return {
       propertyId,
       grossBookingIncomeCents,
@@ -244,14 +245,15 @@ export function calculatePropertyFinancials(
     };
   }
 
-  // Determine taxable base based on taxConfig rule
-  let taxBookingBaseCents = grossBookingIncomeCents;
-  if (taxConfig.vatBasis === 'net_after_commission') {
-    taxBookingBaseCents = netBookingIncomeCents;
-  }
+  const vatBookingBaseCents =
+    taxConfig.vatBasis === 'net_after_commission'
+      ? netBookingIncomeCents
+      : grossBookingIncomeCents;
 
   const taxResults = calculatePropertyTaxes({
-    bookingIncomeCents: taxBookingBaseCents,
+    bookingIncomeCents: vatBookingBaseCents,
+    grossBookingIncomeCents,
+    netBookingIncomeCents,
     extraIncomeCents,
     extraIncomeByTreatment,
     totalExpensesCents,
@@ -274,13 +276,13 @@ export function calculatePropertyFinancials(
     ecoContributionCents: taxResults.ecoContributionCents,
     incomeTaxCents: taxResults.incomeTaxCents,
     calculatedTaxesCents: taxResults.calculatedTaxesCents,
-    netBalanceCents: netBookingIncomeCents + extraIncomeCents - totalExpensesCents - taxResults.calculatedTaxesCents,
+    netBalanceCents: taxResults.netBalanceCents,
     isTaxConfigured: true,
   };
 }
 
 /**
- * Aggregates financials across all properties.
+ * Aggregates financials across the active property catalog.
  */
 export function calculateAggregatedFinancials(
   year: number,
@@ -290,54 +292,59 @@ export function calculateAggregatedFinancials(
   extraIncomes: ExtraIncome[],
   taxConfig: TaxConfiguration
 ): AggregatedFinancials {
-  const propertyFinancials = ALL_PROPERTIES.map((p) =>
-    calculatePropertyFinancials(p.id, year, month, bookings, expenses, extraIncomes, taxConfig)
+  const propertyFinancials = ALL_PROPERTIES.map((property) =>
+    calculatePropertyFinancials(
+      property.id,
+      year,
+      month,
+      bookings,
+      expenses,
+      extraIncomes,
+      taxConfig
+    )
   );
-
   const configured = isTaxConfigured(taxConfig);
 
-  let combinedGrossBookingIncomeCents = 0;
-  let combinedOtaCommissionCents = 0;
-  let combinedNetBookingIncomeCents = 0;
-  let combinedExtraIncomeCents = 0;
-  let combinedExpenseCents = 0;
-
-  let combinedAccommodationVatCents = configured ? 0 : null;
-  let combinedStandardVatCents = configured ? 0 : null;
-  let combinedEcoContributionCents = configured ? 0 : null;
-  let combinedIncomeTaxCents = configured ? 0 : null;
-  let combinedCalculatedTaxesCents = configured ? 0 : null;
-  let combinedNetBalanceCents = configured ? 0 : null;
-
-  for (const pFin of propertyFinancials) {
-    combinedGrossBookingIncomeCents += pFin.grossBookingIncomeCents;
-    combinedOtaCommissionCents += pFin.otaCommissionCents;
-    combinedNetBookingIncomeCents += pFin.netBookingIncomeCents;
-    combinedExtraIncomeCents += pFin.extraIncomeCents;
-    combinedExpenseCents += pFin.totalExpensesCents;
-
-    if (configured) {
-      combinedAccommodationVatCents = (combinedAccommodationVatCents ?? 0) + (pFin.accommodationVatCents ?? 0);
-      combinedStandardVatCents = (combinedStandardVatCents ?? 0) + (pFin.standardVatCents ?? 0);
-      combinedEcoContributionCents = (combinedEcoContributionCents ?? 0) + (pFin.ecoContributionCents ?? 0);
-      combinedIncomeTaxCents = (combinedIncomeTaxCents ?? 0) + (pFin.incomeTaxCents ?? 0);
-      combinedCalculatedTaxesCents = (combinedCalculatedTaxesCents ?? 0) + (pFin.calculatedTaxesCents ?? 0);
-      combinedNetBalanceCents = (combinedNetBalanceCents ?? 0) + (pFin.netBalanceCents ?? 0);
-    }
-  }
-
-  return {
-    combinedGrossBookingIncomeCents,
-    combinedOtaCommissionCents,
-    combinedNetBookingIncomeCents,
-    combinedExtraIncomeCents,
-    combinedExpenseCents,
-    combinedAccommodationVatCents,
-    combinedStandardVatCents,
-    combinedEcoContributionCents,
-    combinedIncomeTaxCents,
-    combinedCalculatedTaxesCents,
-    combinedNetBalanceCents,
+  const result: AggregatedFinancials = {
+    combinedGrossBookingIncomeCents: 0,
+    combinedOtaCommissionCents: 0,
+    combinedNetBookingIncomeCents: 0,
+    combinedExtraIncomeCents: 0,
+    combinedExpenseCents: 0,
+    combinedAccommodationVatCents: configured ? 0 : null,
+    combinedStandardVatCents: configured ? 0 : null,
+    combinedEcoContributionCents: configured ? 0 : null,
+    combinedIncomeTaxCents: configured ? 0 : null,
+    combinedCalculatedTaxesCents: configured ? 0 : null,
+    combinedNetBalanceCents: configured ? 0 : null,
     isTaxConfigured: configured,
   };
+
+  for (const financials of propertyFinancials) {
+    result.combinedGrossBookingIncomeCents += financials.grossBookingIncomeCents;
+    result.combinedOtaCommissionCents += financials.otaCommissionCents;
+    result.combinedNetBookingIncomeCents += financials.netBookingIncomeCents;
+    result.combinedExtraIncomeCents += financials.extraIncomeCents;
+    result.combinedExpenseCents += financials.totalExpensesCents;
+
+    if (!configured) continue;
+
+    result.combinedAccommodationVatCents =
+      (result.combinedAccommodationVatCents ?? 0) +
+      (financials.accommodationVatCents ?? 0);
+    result.combinedStandardVatCents =
+      (result.combinedStandardVatCents ?? 0) + (financials.standardVatCents ?? 0);
+    result.combinedEcoContributionCents =
+      (result.combinedEcoContributionCents ?? 0) +
+      (financials.ecoContributionCents ?? 0);
+    result.combinedIncomeTaxCents =
+      (result.combinedIncomeTaxCents ?? 0) + (financials.incomeTaxCents ?? 0);
+    result.combinedCalculatedTaxesCents =
+      (result.combinedCalculatedTaxesCents ?? 0) +
+      (financials.calculatedTaxesCents ?? 0);
+    result.combinedNetBalanceCents =
+      (result.combinedNetBalanceCents ?? 0) + (financials.netBalanceCents ?? 0);
+  }
+
+  return result;
 }
