@@ -1,0 +1,62 @@
+/* Mobile-only modal corrections. Desktop layout is intentionally untouched. */
+@media (max-width: 639px) {
+  /* Booking modal overlay */
+  div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"] {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    padding: 0 !important;
+    background: #0f172a !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Booking modal card */
+  div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"]
+    > div[class*="max-w-2xl"] {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Keep the modal header visible while the form scrolls. */
+  div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"]
+    > div[class*="max-w-2xl"]
+    > div:first-child {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    flex: 0 0 auto;
+    padding: 14px 16px !important;
+  }
+
+  div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"]
+    > div[class*="max-w-2xl"]
+    > div:first-child h3 {
+    font-size: 16px !important;
+    line-height: 1.05 !important;
+  }
+
+  div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"]
+    > div[class*="max-w-2xl"]
+    > form[class*="overflow-y-auto"] {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 16px !important;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    overscroll-behavior: contain;
+  }
+
+  /* Touch devices must never retain the calendar hover card above a modal. */
+  .booking-span-tooltip {
+    display: none !important;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .booking-span-tooltip {
+    display: none !important;
+  }
+}
