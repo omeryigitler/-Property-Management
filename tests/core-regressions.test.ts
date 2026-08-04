@@ -228,6 +228,39 @@ test('backup validation rejects incomplete arrays instead of crashing import UI'
   assert.match(invalid.error ?? '', /expenses array/i);
 });
 
+test('backup validation rejects a booking with an invalid date range', () => {
+  const invalid = validateBackupJson({
+    taxConfiguration: zeroTaxConfig,
+    bookings: [
+      booking('invalid-range', '1-the-olive', '2026-08-02', '2026-08-02', 10_000),
+    ],
+    expenses: [],
+    extraIncomes: [],
+  });
+
+  assert.equal(invalid.isValid, false);
+  assert.match(invalid.error ?? '', /invalid dates/i);
+});
+
+test('backup validation rejects duplicate booking identifiers', () => {
+  const duplicate = booking(
+    'duplicate-id',
+    '1-the-olive',
+    '2026-08-01',
+    '2026-08-02',
+    10_000
+  );
+  const invalid = validateBackupJson({
+    taxConfiguration: zeroTaxConfig,
+    bookings: [duplicate, { ...duplicate }],
+    expenses: [],
+    extraIncomes: [],
+  });
+
+  assert.equal(invalid.isValid, false);
+  assert.match(invalid.error ?? '', /duplicate booking IDs/i);
+});
+
 test('legacy backup is normalized with safe optional defaults', () => {
   const valid = validateBackupJson({
     version: 1,
