@@ -29,6 +29,10 @@ function getChannelCommission(channel: Channel) {
   };
 }
 
+function euroInputFromCents(cents: number): string {
+  return centsToEuros(cents).toFixed(2).replace(/\.00$/, '');
+}
+
 export function BookingModal() {
   const activeModal = useDashboardStore((state) => state.activeModal);
   const modalParams = useDashboardStore((state) => state.modalParams);
@@ -57,6 +61,7 @@ export function BookingModal() {
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
   const [nightlyRate, setNightlyRate] = useState('');
+  const [totalAccommodation, setTotalAccommodation] = useState('');
   const [adults, setAdults] = useState('2');
   const [children, setChildren] = useState('0');
   const [status, setStatus] = useState<BookingStatus>('confirmed');
@@ -94,12 +99,17 @@ export function BookingModal() {
     setChannel(booking.channel);
     setCheckInDate(asCopy ? '' : booking.checkInDate);
     setCheckOutDate(asCopy ? '' : booking.checkOutDate);
-    setNightlyRate(centsToEuros(booking.nightlyRateCents).toString());
+    setNightlyRate(euroInputFromCents(booking.nightlyRateCents));
+    setTotalAccommodation(
+      booking.accommodationTotalCents != null
+        ? euroInputFromCents(booking.accommodationTotalCents)
+        : ''
+    );
     setAdults(booking.adults.toString());
     setChildren(booking.children.toString());
     setStatus(asCopy ? 'confirmed' : booking.status);
-    setDiscount(centsToEuros(booking.discountCents).toString());
-    setCleaningFee(centsToEuros(booking.cleaningFeeCents).toString());
+    setDiscount(euroInputFromCents(booking.discountCents));
+    setCleaningFee(euroInputFromCents(booking.cleaningFeeCents));
     setNotes(booking.notes || '');
     setBookingRef(
       asCopy && booking.bookingRef ? `${booking.bookingRef}-COPY` : booking.bookingRef || ''
@@ -111,7 +121,7 @@ export function BookingModal() {
       (booking.commissionPercentage ?? getChannelCommission(booking.channel).percentage).toString()
     );
     setCommissionFixedAmount(
-      centsToEuros(booking.commissionFixedAmountCents ?? 0).toString()
+      euroInputFromCents(booking.commissionFixedAmountCents ?? 0)
     );
     setCommissionOverrideEnabled(booking.commissionOverrideEnabled ?? false);
     setCheckInTime(booking.checkInTime || taxConfig.defaultCheckInTime || '15:00');
@@ -158,6 +168,7 @@ export function BookingModal() {
     }
 
     setNightlyRate('120');
+    setTotalAccommodation('');
     setAdults('2');
     setChildren('0');
     setStatus('confirmed');
@@ -176,6 +187,14 @@ export function BookingModal() {
     setRequiredTurnoverMinutes(String(taxConfig.defaultTurnoverMinutes || 240));
     setFormError(null);
   }, [activeModal, modalParams, editingBooking, copiedBooking, taxConfig]);
+
+  useEffect(() => {
+    if (totalAccommodation.trim() === '') return;
+    const nights = Math.max(0, calculateNights(checkInDate, checkOutDate));
+    if (nights <= 0) return;
+    const totalCents = Math.max(0, eurosToCents(totalAccommodation));
+    setNightlyRate(euroInputFromCents(Math.round(totalCents / nights)));
+  }, [checkInDate, checkOutDate, totalAccommodation]);
 
   if (!isAdding && !isEditing) return null;
 
@@ -206,13 +225,21 @@ export function BookingModal() {
 
   const nightsCount = Math.max(0, calculateNights(checkInDate, checkOutDate));
   const parsedNightlyRateCents = Math.max(0, eurosToCents(nightlyRate));
-  const parsedDiscountCents = Math.max(0, eurosToCents(discount));
+  const parsedTotalAccommodationCents = Math.max(0, eurosToCents(totalAccommodation));
+  const usesExactTotal = totalAccommodation.trim() !== '';
+  const accommodationBeforeDiscountCents = usesExactTotal
+    ? parsedTotalAccommodationCents
+    : nightsCount * parsedNightlyRateCents;
+  const parsedDiscountCents = Math.min(
+    accommodationBeforeDiscountCents,
+    Math.max(0, eurosToCents(discount))
+  );
   const parsedCleaningFeeCents = Math.max(0, eurosToCents(cleaningFee));
   const parsedCommissionPercentage = Number.parseFloat(commissionPercentage) || 0;
   const parsedCommissionFixedCents = Math.max(0, eurosToCents(commissionFixedAmount));
   const grossAccommodationRevenueCents = Math.max(
     0,
-    nightsCount * parsedNightlyRateCents - parsedDiscountCents
+    accommodationBeforeDiscountCents - parsedDiscountCents
   );
   const grossBookingRevenueCents =
     grossAccommodationRevenueCents + parsedCleaningFeeCents;
@@ -229,6 +256,18 @@ export function BookingModal() {
         : 0;
   const netBookingRevenueCents = grossBookingRevenueCents - otaCommissionCents;
   const suggestedCommissionPercentage = getChannelCommission(channel).percentage;
+
+  const handleNightlyRateChange = (value: string) => {
+    setNightlyRate(value);
+    setTotalAccommodation('');
+  };
+
+  const handleTotalAccommodationChange = (value: string) => {
+    setTotalAccommodation(value);
+    if (value.trim() === '' || nightsCount <= 0) return;
+    const totalCents = Math.max(0, eurosToCents(value));
+    setNightlyRate(euroInputFromCents(Math.round(totalCents / nightsCount)));
+  };
 
   const propertyOptions = ALL_PROPERTIES.map((property) => ({
     value: property.id,
@@ -291,6 +330,9 @@ export function BookingModal() {
       checkInDate,
       checkOutDate,
       nightlyRateCents: parsedNightlyRateCents,
+      accommodationTotalCents: usesExactTotal
+        ? parsedTotalAccommodationCents
+        : undefined,
       adults: parsedAdults,
       children: parsedChildren,
       status,
@@ -550,24 +592,65 @@ export function BookingModal() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {[
-                ['Nightly Rate (€)', nightlyRate, setNightlyRate],
-                ['Cleaning Fee (€)', cleaningFee, setCleaningFee],
-                ['Discount (€)', discount, setDiscount],
-              ].map(([label, value, setter]) => (
-                <label key={String(label)} className="space-y-1 text-xs font-semibold text-slate-300">
-                  <span className="block">{String(label)}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={String(value)}
-                    onChange={(event) => (setter as (value: string) => void)(event.target.value)}
-                    className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
-                  />
-                </label>
-              ))}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-xs font-semibold text-slate-300">
+                <span className="block">Nightly Rate (€)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={nightlyRate}
+                  onChange={(event) => handleNightlyRateChange(event.target.value)}
+                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+                <span className="block text-[9px] font-normal text-slate-500">
+                  Editing this switches pricing back to nightly.
+                </span>
+              </label>
+
+              <label className="space-y-1 text-xs font-semibold text-slate-300">
+                <span className="block">Total Accommodation (€) · Optional</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={totalAccommodation}
+                  onChange={(event) => handleTotalAccommodationChange(event.target.value)}
+                  placeholder={
+                    nightsCount > 0
+                      ? euroInputFromCents(nightsCount * parsedNightlyRateCents)
+                      : 'Enter total after selecting dates'
+                  }
+                  className="h-9 w-full rounded-lg border border-cyan-800 bg-cyan-950/20 px-3 text-xs text-cyan-100 outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+                <span className="block text-[9px] font-normal text-slate-500">
+                  Entering a total divides it across {nightsCount || 'the selected'} nights.
+                </span>
+              </label>
+
+              <label className="space-y-1 text-xs font-semibold text-slate-300">
+                <span className="block">Cleaning Fee (€)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={cleaningFee}
+                  onChange={(event) => setCleaningFee(event.target.value)}
+                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+              </label>
+
+              <label className="space-y-1 text-xs font-semibold text-slate-300">
+                <span className="block">Discount (€)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={discount}
+                  onChange={(event) => setDiscount(event.target.value)}
+                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-100 outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+              </label>
             </div>
 
             <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/80 p-3">
@@ -644,11 +727,19 @@ export function BookingModal() {
 
             <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
               <div className="flex justify-between gap-3">
-                <span>Accommodation ({nightsCount} nights)</span>
+                <span>
+                  Accommodation ({nightsCount} nights{usesExactTotal ? ' · exact total' : ''})
+                </span>
                 <span className="font-medium text-slate-200">
-                  {formatCents(nightsCount * parsedNightlyRateCents)}
+                  {formatCents(accommodationBeforeDiscountCents)}
                 </span>
               </div>
+              {usesExactTotal && nightsCount > 0 && (
+                <div className="flex justify-between text-cyan-400">
+                  <span>Derived Nightly Rate</span>
+                  <span>{formatCents(Math.round(parsedTotalAccommodationCents / nightsCount))}</span>
+                </div>
+              )}
               {parsedCleaningFeeCents > 0 && (
                 <div className="flex justify-between text-emerald-400">
                   <span>+ Cleaning Fee</span>
