@@ -1,48 +1,32 @@
-import React, { useState } from 'react';
-import { Plus, Info, Lock } from 'lucide-react';
+import React from 'react';
+import { ArrowRight, Info, Lock, Pencil } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 import { ALL_PROPERTIES } from '../../config/locations';
 import { calculatePropertyFinancials } from '../../utils/financeCalculations';
-import { formatCents, eurosToCents } from '../../utils/currency';
+import { formatCents } from '../../utils/currency';
+import { isRentExpense, sumExpenses } from '../../utils/expenseUtilities';
 import { MobileBottomSheet } from '../common/MobileBottomSheet';
-import { FinanceLineItem } from './FinanceLineItem';
 
 export function PropertyFinanceMobileSheet() {
-  const activeModal = useDashboardStore((s) => s.activeModal);
-  const modalParams = useDashboardStore((s) => s.modalParams);
-  const closeModal = useDashboardStore((s) => s.closeModal);
+  const activeModal = useDashboardStore((state) => state.activeModal);
+  const modalParams = useDashboardStore((state) => state.modalParams);
+  const closeModal = useDashboardStore((state) => state.closeModal);
+  const openModal = useDashboardStore((state) => state.openModal);
 
-  const selectedMonth = useDashboardStore((s) => s.selectedMonth);
-  const selectedYear = useDashboardStore((s) => s.selectedYear);
-  const taxConfig = useDashboardStore((s) => s.taxConfiguration);
-  const bookings = useDashboardStore((s) => s.bookings);
-  const expenses = useDashboardStore((s) => s.expenses);
-  const extraIncomes = useDashboardStore((s) => s.extraIncomes);
-
-  const addExpense = useDashboardStore((s) => s.addExpense);
-  const updateExpense = useDashboardStore((s) => s.updateExpense);
-  const deleteExpense = useDashboardStore((s) => s.deleteExpense);
-
-  const addExtraIncome = useDashboardStore((s) => s.addExtraIncome);
-  const updateExtraIncome = useDashboardStore((s) => s.updateExtraIncome);
-  const deleteExtraIncome = useDashboardStore((s) => s.deleteExtraIncome);
-  const openModal = useDashboardStore((s) => s.openModal);
-
-  const [newExpLabel, setNewExpLabel] = useState('');
-  const [newExpAmount, setNewExpAmount] = useState('');
-  const [showAddExp, setShowAddExp] = useState(false);
-
-  const [newExtLabel, setNewExtLabel] = useState('');
-  const [newExtAmount, setNewExtAmount] = useState('');
-  const [showAddExt, setShowAddExt] = useState(false);
+  const selectedMonth = useDashboardStore((state) => state.selectedMonth);
+  const selectedYear = useDashboardStore((state) => state.selectedYear);
+  const taxConfig = useDashboardStore((state) => state.taxConfiguration);
+  const bookings = useDashboardStore((state) => state.bookings);
+  const expenses = useDashboardStore((state) => state.expenses);
+  const extraIncomes = useDashboardStore((state) => state.extraIncomes);
 
   const isOpen = activeModal === 'mobile_property_finance';
-  const propertyId = modalParams.propertyId;
-  const property = ALL_PROPERTIES.find((p) => p.id === propertyId);
+  const propertyId = modalParams.propertyId as string | undefined;
+  const property = ALL_PROPERTIES.find((item) => item.id === propertyId);
 
-  if (!isOpen || !property) return null;
+  if (!isOpen || !property || !propertyId) return null;
 
-  const fin = calculatePropertyFinancials(
+  const financials = calculatePropertyFinancials(
     propertyId,
     selectedYear,
     selectedMonth,
@@ -53,235 +37,153 @@ export function PropertyFinanceMobileSheet() {
   );
 
   const propertyExpenses = expenses.filter(
-    (e) => e.propertyId === propertyId && e.year === selectedYear && e.month === selectedMonth
+    (expense) =>
+      expense.propertyId === propertyId &&
+      expense.year === selectedYear &&
+      expense.month === selectedMonth
   );
+  const rentExpenses = propertyExpenses.filter(isRentExpense);
+  const otherExpenses = propertyExpenses.filter((expense) => !isRentExpense(expense));
+  const rentTotalCents = sumExpenses(rentExpenses);
+  const otherExpensesTotalCents = sumExpenses(otherExpenses);
 
   const propertyExtraIncomes = extraIncomes.filter(
-    (e) => e.propertyId === propertyId && e.year === selectedYear && e.month === selectedMonth
+    (income) =>
+      income.propertyId === propertyId &&
+      income.year === selectedYear &&
+      income.month === selectedMonth
   );
-
-  const handleSaveExpense = () => {
-    if (!newExpLabel.trim()) return;
-    addExpense({
-      propertyId,
-      year: selectedYear,
-      month: selectedMonth,
-      label: newExpLabel.trim(),
-      amountCents: eurosToCents(newExpAmount),
-      category: 'General',
-      isDeductible: true,
-    });
-    setNewExpLabel('');
-    setNewExpAmount('');
-    setShowAddExp(false);
-  };
-
-  const handleSaveExtraIncome = () => {
-    if (!newExtLabel.trim()) return;
-    addExtraIncome({
-      propertyId,
-      year: selectedYear,
-      month: selectedMonth,
-      label: newExtLabel.trim(),
-      amountCents: eurosToCents(newExtAmount),
-      taxTreatment: taxConfig.defaultExtraIncomeTaxTreatment || 'standard_vat',
-    });
-    setNewExtLabel('');
-    setNewExtAmount('');
-    setShowAddExt(false);
-  };
 
   return (
     <MobileBottomSheet isOpen={isOpen} onClose={closeModal} title={`${property.name} Financial Ledger`}>
-      <div className="space-y-4">
-        {/* Monthly Booking Income */}
-        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-          <div className="flex justify-between items-center">
+      <div className="space-y-3 pb-2">
+        <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5">
+          <div className="flex items-center justify-between gap-3">
             <span className="text-xs font-semibold text-slate-300">Net Booking Revenue</span>
-            <span className="text-sm font-extrabold text-emerald-400 font-mono">
-              {formatCents(fin.netBookingIncomeCents)}
+            <span className="font-mono text-sm font-extrabold text-emerald-400">
+              {formatCents(financials.netBookingIncomeCents)}
             </span>
           </div>
-          <div className="flex justify-between items-center text-[11px] font-mono text-slate-400">
-            <span>Gross Total: {formatCents(fin.grossBookingIncomeCents)}</span>
-            <span className="text-amber-400">OTA Comm: -{formatCents(fin.otaCommissionCents)}</span>
+          <div className="mt-1 flex items-center justify-between gap-3 font-mono text-[10px] text-slate-500">
+            <span>Gross: {formatCents(financials.grossBookingIncomeCents)}</span>
+            <span className="text-amber-400">OTA: -{formatCents(financials.otaCommissionCents)}</span>
           </div>
         </div>
 
-        {/* Extra Income Section */}
-        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Extra Income</span>
-            <span className="text-xs font-mono text-emerald-300">{formatCents(fin.extraIncomeCents)}</span>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-violet-900/70 bg-violet-950/20 p-3">
+            <span className="text-[9px] font-black uppercase tracking-wider text-violet-300">Monthly Rent</span>
+            <span className="mt-1 block font-mono text-sm font-black text-violet-200">
+              -{formatCents(rentTotalCents)}
+            </span>
           </div>
-
-          <div className="space-y-1">
-            {propertyExtraIncomes.map((item) => (
-              <FinanceLineItem
-                key={item.id}
-                id={item.id}
-                label={item.label}
-                amountCents={item.amountCents}
-                onUpdate={(id, lbl, cents) => updateExtraIncome(id, { label: lbl, amountCents: cents })}
-                onDelete={(id) => deleteExtraIncome(id)}
-                type="extra_income"
-              />
-            ))}
+          <div className="rounded-xl border border-rose-900/70 bg-rose-950/20 p-3">
+            <span className="text-[9px] font-black uppercase tracking-wider text-rose-300">Other Costs</span>
+            <span className="mt-1 block font-mono text-sm font-black text-rose-300">
+              -{formatCents(otherExpensesTotalCents)}
+            </span>
           </div>
-
-          {showAddExt ? (
-            <div className="p-2 rounded-lg bg-slate-900 border border-slate-700 space-y-2 text-xs">
-              <input
-                type="text"
-                placeholder="e.g. Late Checkout"
-                value={newExtLabel}
-                onChange={(e) => setNewExtLabel(e.target.value)}
-                className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100"
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Amount €"
-                value={newExtAmount}
-                onChange={(e) => setNewExtAmount(e.target.value)}
-                className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100"
-              />
-              <div className="flex justify-end gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowAddExt(false)}
-                  className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveExtraIncome}
-                  className="px-2.5 py-1 rounded bg-emerald-600 text-white font-bold text-xs"
-                >
-                  Save Income
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowAddExt(true)}
-              className="w-full py-2 rounded-lg border border-dashed border-slate-700 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-900 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Extra Income</span>
-            </button>
-          )}
         </div>
 
-        {/* Expenses Section */}
-        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-400">Total Expenses</span>
-            <span className="text-xs font-mono text-rose-300">{formatCents(fin.totalExpensesCents)}</span>
+        <section className="rounded-xl border border-emerald-900/60 bg-slate-950 p-3.5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Additional Income</span>
+            <span className="font-mono text-xs font-black text-emerald-300">
+              +{formatCents(financials.extraIncomeCents)}
+            </span>
           </div>
-
-          <div className="space-y-1">
-            {propertyExpenses.map((item) => (
-              <FinanceLineItem
-                key={item.id}
-                id={item.id}
-                label={item.label}
-                amountCents={item.amountCents}
-                isDeductible={item.isDeductible}
-                onUpdate={(id, lbl, cents, ded) =>
-                  updateExpense(id, { label: lbl, amountCents: cents, isDeductible: ded })
-                }
-                onDelete={(id) => deleteExpense(id)}
-                type="expense"
-              />
-            ))}
-          </div>
-
-          {showAddExp ? (
-            <div className="p-2 rounded-lg bg-slate-900 border border-slate-700 space-y-2 text-xs">
-              <input
-                type="text"
-                placeholder="Expense label..."
-                value={newExpLabel}
-                onChange={(e) => setNewExpLabel(e.target.value)}
-                className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100"
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Amount €"
-                value={newExpAmount}
-                onChange={(e) => setNewExpAmount(e.target.value)}
-                className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100"
-              />
-              <div className="flex justify-end gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowAddExp(false)}
-                  className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveExpense}
-                  className="px-2.5 py-1 rounded bg-rose-600 text-white font-bold text-xs"
-                >
-                  Save Expense
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowAddExp(true)}
-              className="w-full py-2 rounded-lg border border-dashed border-slate-700 text-rose-400 text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-900 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Expense</span>
-            </button>
-          )}
-        </div>
-
-        {/* Calculated Taxes & Net Balance */}
-        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
-          <div className="flex justify-between items-center text-slate-300">
-            <span className="font-semibold">Calculated Taxes:</span>
-            {fin.isTaxConfigured ? (
-              <span className="font-mono text-amber-300 font-bold">{formatCents(fin.calculatedTaxesCents)}</span>
+          <div className="mt-2 space-y-1.5">
+            {propertyExtraIncomes.length > 0 ? (
+              propertyExtraIncomes.map((income) => (
+                <div key={income.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-900/70 px-3 py-2">
+                  <span className="min-w-0 truncate text-xs font-semibold text-slate-300">{income.label}</span>
+                  <span className="flex-shrink-0 font-mono text-xs font-black text-emerald-300">
+                    +{formatCents(income.amountCents)}
+                  </span>
+                </div>
+              ))
             ) : (
-              <span className="text-amber-400 flex items-center gap-1 text-[11px] font-semibold">
-                <Lock className="w-3 h-3" /> Configuration Required
+              <div className="rounded-lg border border-dashed border-slate-800 px-3 py-3 text-center text-[10px] font-semibold text-slate-600">
+                No additional income for this month
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-rose-900/60 bg-slate-950 p-3.5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <span className="text-xs font-black uppercase tracking-wider text-rose-400">Other Expenses</span>
+            <span className="font-mono text-xs font-black text-rose-300">
+              -{formatCents(otherExpensesTotalCents)}
+            </span>
+          </div>
+          <div className="mt-2 space-y-1.5">
+            {otherExpenses.length > 0 ? (
+              otherExpenses.map((expense) => (
+                <div key={expense.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-900/70 px-3 py-2">
+                  <span className="min-w-0 truncate text-xs font-semibold text-slate-300">{expense.label}</span>
+                  <span className="flex-shrink-0 font-mono text-xs font-black text-rose-300">
+                    -{formatCents(expense.amountCents)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-800 px-3 py-3 text-center text-[10px] font-semibold text-slate-600">
+                No other expenses for this month
+              </div>
+            )}
+          </div>
+        </section>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 text-xs">
+          <div className="flex items-center justify-between gap-3 text-slate-300">
+            <span className="font-semibold">Total Expenses</span>
+            <span className="font-mono font-bold text-rose-300">-{formatCents(financials.totalExpensesCents)}</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-800 pt-2 text-slate-300">
+            <span className="font-semibold">Calculated Taxes</span>
+            {financials.isTaxConfigured ? (
+              <span className="font-mono font-bold text-amber-300">-{formatCents(financials.calculatedTaxesCents)}</span>
+            ) : (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-400">
+                <Lock className="h-3 w-3" /> Required
               </span>
             )}
           </div>
-
-          <div className="flex justify-between items-center pt-2 border-t border-slate-800 font-bold text-sm">
-            <span className="text-slate-100">Net Balance:</span>
-            {fin.isTaxConfigured ? (
-              <span className="font-mono text-cyan-300 font-extrabold">{formatCents(fin.netBalanceCents)}</span>
-            ) : (
-              <span className="text-amber-400 text-xs font-bold uppercase tracking-wide">
-                Configuration Required
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-800 pt-2 text-sm font-bold">
+            <span className="text-slate-100">Net Balance</span>
+            {financials.isTaxConfigured ? (
+              <span
+                className={`font-mono font-extrabold ${
+                  (financials.netBalanceCents ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                }`}
+              >
+                {formatCents(financials.netBalanceCents)}
               </span>
+            ) : (
+              <span className="text-[10px] font-black uppercase text-amber-400">Configuration Required</span>
             )}
           </div>
 
-          {fin.isTaxConfigured && (
+          {financials.isTaxConfigured && (
             <button
               type="button"
-              onClick={() => {
-                openModal('calc_details', { propertyId });
-              }}
-              className="w-full mt-2 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 font-semibold text-xs flex items-center justify-center gap-1 border border-slate-800"
+              onClick={() => openModal('calc_details', { propertyId })}
+              className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 text-xs font-semibold text-cyan-400 hover:bg-slate-800"
             >
-              <Info className="w-3.5 h-3.5" />
-              <span>View Full Tax Breakdown</span>
+              <Info className="h-3.5 w-3.5" /> View Tax Breakdown
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => openModal('settings', { section: 'finance', propertyId })}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-cyan-950/40 hover:bg-cyan-500"
+        >
+          <Pencil className="h-4 w-4" /> Edit Monthly Finance
+          <ArrowRight className="h-4 w-4" />
+        </button>
       </div>
     </MobileBottomSheet>
   );
