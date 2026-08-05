@@ -13,7 +13,6 @@ interface LineDraft {
   label: string;
   amount: string;
   category?: string;
-  isRecurring?: boolean;
   createdAt?: string;
 }
 
@@ -105,7 +104,6 @@ export function MonthlyFinanceSettings() {
             label: item.label,
             amount: amountInput(item.amountCents),
             category: item.category,
-            isRecurring: Boolean(item.isRecurring),
             createdAt: item.createdAt,
           })),
       };
@@ -166,7 +164,6 @@ export function MonthlyFinanceSettings() {
           label: 'Rent',
           amountCents: rentCents,
           category: 'Rent',
-          isRecurring: true,
           createdAt: now,
           updatedAt: now,
         });
@@ -206,7 +203,6 @@ export function MonthlyFinanceSettings() {
           label,
           amountCents,
           category: item.category?.trim() || 'General',
-          isRecurring: Boolean(item.isRecurring),
           createdAt: item.createdAt || now,
           updatedAt: now,
         });
@@ -408,7 +404,6 @@ export function MonthlyFinanceSettings() {
                             label: '',
                             amount: '0',
                             category: 'General',
-                            isRecurring: false,
                           },
                         ],
                       }))
@@ -475,45 +470,22 @@ export function MonthlyFinanceSettings() {
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                        <input
-                          value={item.category || ''}
-                          placeholder="Category"
-                          onChange={(event) =>
-                            updateDraft(property.id, (current) => ({
-                              ...current,
-                              expenses: current.expenses.map(
-                                (value, itemIndex) =>
-                                  itemIndex === index
-                                    ? { ...value, category: event.target.value }
-                                    : value
-                              ),
-                            }))
-                          }
-                          className="h-9 min-w-0 rounded border border-slate-700 bg-slate-900 px-2 text-xs"
-                        />
-                        <label className="flex items-center gap-1.5 rounded border border-slate-800 px-2 text-[9px] font-bold uppercase text-slate-400">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(item.isRecurring)}
-                            onChange={(event) =>
-                              updateDraft(property.id, (current) => ({
-                                ...current,
-                                expenses: current.expenses.map(
-                                  (value, itemIndex) =>
-                                    itemIndex === index
-                                      ? {
-                                          ...value,
-                                          isRecurring: event.target.checked,
-                                        }
-                                      : value
-                                ),
-                              }))
-                            }
-                          />
-                          Repeat
-                        </label>
-                      </div>
+                      <input
+                        value={item.category || ''}
+                        placeholder="Category"
+                        onChange={(event) =>
+                          updateDraft(property.id, (current) => ({
+                            ...current,
+                            expenses: current.expenses.map(
+                              (value, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...value, category: event.target.value }
+                                  : value
+                            ),
+                          }))
+                        }
+                        className="h-9 w-full min-w-0 rounded border border-slate-700 bg-slate-900 px-2 text-xs"
+                      />
                     </div>
                   ))}
                   {draft.expenses.length === 0 && (
