@@ -5,7 +5,6 @@ import {
   Database,
   Home,
   Plus,
-  SlidersHorizontal,
   Trash2,
   WalletCards,
   X,
@@ -19,18 +18,13 @@ import { PropertyConfig } from '../../types';
 import { CustomSelect } from '../common/CustomSelect';
 import { MonthlyFinanceSettings } from './settings/MonthlyFinanceSettings';
 
-type SettingsSection = 'overview' | 'properties' | 'finance' | 'data';
+type SettingsSection = 'properties' | 'finance' | 'data';
 
 const sections: Array<{
   id: SettingsSection;
   label: string;
   icon: React.ReactNode;
 }> = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    icon: <SlidersHorizontal className="h-4 w-4" />,
-  },
   {
     id: 'properties',
     label: 'Properties',
@@ -68,7 +62,7 @@ export function SettingsModal() {
   const addProperty = usePropertyStore((state) => state.addProperty);
   const updateProperty = usePropertyStore((state) => state.updateProperty);
 
-  const [section, setSection] = useState<SettingsSection>('overview');
+  const [section, setSection] = useState<SettingsSection>('properties');
   const [newLocationName, setNewLocationName] = useState('');
   const [newPropertyName, setNewPropertyName] = useState('');
   const [newPropertyLocation, setNewPropertyLocation] = useState(
@@ -81,7 +75,7 @@ export function SettingsModal() {
     setSection(
       sections.some((item) => item.id === requested)
         ? requested!
-        : 'overview'
+        : 'properties'
     );
   }, [activeModal, modalParams]);
 
@@ -348,49 +342,6 @@ export function SettingsModal() {
           </nav>
 
           <div className="min-h-0 flex-1 overflow-y-auto bg-[#fbfaf9] p-3 no-scrollbar sm:p-5">
-            {section === 'overview' && (
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-display text-lg font-extrabold tracking-[-0.02em] text-[#222222]">
-                    System overview
-                  </h4>
-                  <p className="mt-1 text-sm text-[#717171]">
-                    A clear summary of the active property setup.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {[
-                    ['Locations', locations.length, 'text-[#222222]'],
-                    [
-                      'Active Properties',
-                      activeProperties.length,
-                      'text-[#222222]',
-                    ],
-                    ['Data Model', 'Simplified', 'text-[#237a59]'],
-                    [
-                      'Financial Model',
-                      'Income − Expenses',
-                      'text-[#c83f45]',
-                    ],
-                  ].map(([label, value, valueClass]) => (
-                    <div
-                      key={String(label)}
-                      className="rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_8px_26px_rgba(55,42,36,0.05)]"
-                    >
-                      <span className="text-xs font-semibold text-[#8a817d]">
-                        {label}
-                      </span>
-                      <strong
-                        className={`mt-2 block text-lg font-extrabold ${valueClass}`}
-                      >
-                        {value}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {section === 'properties' && (
               <div className="space-y-4">
                 <div>
