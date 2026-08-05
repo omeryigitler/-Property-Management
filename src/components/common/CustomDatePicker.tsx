@@ -120,7 +120,7 @@ export function CustomDatePicker({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-[#ded8d4] bg-white p-3.5 text-[#222222] shadow-[0_18px_55px_rgba(45,32,28,0.18)] sm:w-80">
+        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-[#ded8d4] bg-white p-3.5 text-[#222222] shadow-[0_18px_55px_rgba(45,32,28,0.18)]">
           <div className="mb-2 flex items-center justify-between gap-2 border-b border-[#eee8e5] pb-3">
             <button
               type="button"
