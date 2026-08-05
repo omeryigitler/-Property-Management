@@ -1,4 +1,5 @@
 import { Booking, PersistedState } from '../types';
+import { isUnreadableGuestName } from '../utils/guestNames';
 import { encryptionService } from './encryptionService';
 import {
   createDefaultExpenses,
@@ -29,6 +30,30 @@ function createPrivateFallbackState(state: PersistedState): PersistedState {
       ...booking,
       guestName: REDACTED_GUEST_NAME,
     })),
+  };
+}
+
+export function repairUnreadableGuestNames(
+  bookings: Booking[],
+  year: number,
+  month: number
+): { bookings: Booking[]; repaired: boolean } {
+  const seedNames = new Map(
+    createSeedBookings(year, month).map((booking) => [booking.id, booking.guestName])
+  );
+  let repaired = false;
+
+  return {
+    repaired: bookings.some((booking) => isUnreadableGuestName(booking.guestName)),
+    bookings: bookings.map((booking, index) => {
+      if (!isUnreadableGuestName(booking.guestName)) return booking;
+      repaired = true;
+      return {
+        ...booking,
+        guestName: seedNames.get(booking.id) || `Guest ${index + 1}`,
+        updatedAt: new Date().toISOString(),
+      };
+    }),
   };
 }
 
@@ -96,12 +121,23 @@ class StorageService {
       });
       const normalized = normalizePersistedState(rawState, year, month);
       if (normalized.bookings.length > 0) {
-        normalized.bookings = await Promise.all(
+        const decryptedBookings = await Promise.all(
           normalized.bookings.map(async (booking) => ({
             ...booking,
             guestName: await encryptionService.decrypt(booking.guestName),
           }))
         );
+        const repairResult = repairUnreadableGuestNames(
+          decryptedBookings,
+          normalized.selectedYear,
+          normalized.selectedMonth
+        );
+        normalized.bookings = repairResult.bookings;
+
+        if (repairResult.repaired) {
+          await this.saveState(normalized);
+        }
+
         return normalized;
       }
     } catch (error) {
@@ -111,7 +147,17 @@ class StorageService {
     for (const storageKey of [FALLBACK_STORAGE_KEY, DASHBOARD_STORAGE_KEY]) {
       try {
         const fallback = localStorage.getItem(storageKey);
-        if (fallback) return normalizePersistedState(JSON.parse(fallback), year, month);
+        if (fallback) {
+          const normalized = normalizePersistedState(JSON.parse(fallback), year, month);
+          const repairResult = repairUnreadableGuestNames(
+            normalized.bookings,
+            normalized.selectedYear,
+            normalized.selectedMonth
+          );
+          normalized.bookings = repairResult.bookings;
+          if (repairResult.repaired) await this.saveState(normalized);
+          return normalized;
+        }
       } catch (error) {
         console.warn(`Failed to load local state from ${storageKey}:`, error);
         localStorage.removeItem(storageKey);
