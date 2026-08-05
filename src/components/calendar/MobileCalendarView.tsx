@@ -4,7 +4,6 @@ import {
   Building2,
   CalendarDays,
   CalendarPlus,
-  CircleDot,
   WalletCards,
 } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
@@ -12,7 +11,7 @@ import {
   getActiveProperties,
   usePropertyStore,
 } from '../../store/usePropertyStore';
-import { LOCATIONS } from '../../config/locations';
+import { CHANNEL_CONFIG, LOCATIONS } from '../../config/locations';
 import { Booking } from '../../types';
 import { getDaysForMonth } from '../../utils/dateUtilities';
 import {
@@ -23,37 +22,11 @@ import { calculatePropertyFinancials } from '../../utils/financeCalculations';
 import { formatCents } from '../../utils/currency';
 import { getGuestDisplayName } from '../../utils/guestNames';
 import { CustomSelect } from '../common/CustomSelect';
+import './booking-span.css';
 
-const MOBILE_DAY_ROW_HEIGHT = 64;
+const MOBILE_DAY_ROW_HEIGHT = 40;
 const REPORT_PROPERTY_SESSION_KEY = 'shortlet-report-property-id';
 type MobileSection = 'schedule' | 'finance';
-
-const channelMeta = {
-  airbnb: {
-    label: 'Airbnb',
-    block: 'border-[#ffc4c1] bg-[#fff4f3] text-[#502b2e]',
-    rail: 'border-[#e84f55] bg-[#ff5a5f] text-white',
-    badge: 'border-white/60 bg-white/15 text-white',
-  },
-  booking_com: {
-    label: 'Booking.com',
-    block: 'border-[#bed5ed] bg-[#f1f7fd] text-[#234f79]',
-    rail: 'border-[#2e68b8] bg-[#3478d4] text-white',
-    badge: 'border-white/60 bg-white/15 text-white',
-  },
-  direct: {
-    label: 'Direct',
-    block: 'border-[#b7dfce] bg-[#f0f9f5] text-[#245b47]',
-    rail: 'border-[#14875e] bg-[#18a875] text-white',
-    badge: 'border-white/60 bg-white/15 text-white',
-  },
-  vrbo: {
-    label: 'VRBO',
-    block: 'border-[#d2c0e5] bg-[#f6f1fb] text-[#5b4274]',
-    rail: 'border-[#7047ad] bg-[#8b5bd1] text-white',
-    badge: 'border-white/60 bg-white/15 text-white',
-  },
-} as const;
 
 interface MobileBookingSpan {
   key: string;
@@ -231,10 +204,13 @@ export function MobileCalendarView() {
       <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         {section === 'schedule' ? (
           <div
-            className="relative grid grid-cols-[54px_minmax(0,1fr)] bg-white"
-            style={{
-              gridTemplateRows: `repeat(${days.length}, ${MOBILE_DAY_ROW_HEIGHT}px)`,
-            }}
+            className="relative grid grid-cols-[48px_minmax(0,1fr)] bg-white"
+            style={
+              {
+                gridTemplateRows: `repeat(${days.length}, ${MOBILE_DAY_ROW_HEIGHT}px)`,
+                '--calendar-booking-row-height': `${MOBILE_DAY_ROW_HEIGHT}px`,
+              } as React.CSSProperties
+            }
           >
             {days.map((day, index) => {
               const state = getCellBookingState(
@@ -247,7 +223,7 @@ export function MobileCalendarView() {
                 <React.Fragment key={day.dateStr}>
                   <div
                     style={{ gridColumn: 1, gridRow: index + 1 }}
-                    className={`z-[1] flex flex-col items-center justify-center border-b border-r border-[#e7dfdb] ${
+                    className={`z-[1] flex flex-col items-center justify-center border-b border-r border-[#ece6e2] ${
                       day.isToday
                         ? 'bg-[#fff0ef] text-[#c73e44]'
                         : day.isWeekend
@@ -255,17 +231,19 @@ export function MobileCalendarView() {
                           : 'bg-white text-[#24211f]'
                     }`}
                   >
-                    <span className="text-[15px] font-extrabold leading-none tabular-nums">
+                    <span className="text-[13px] font-extrabold leading-none tabular-nums">
                       {day.dayNumber}
                     </span>
-                    <span className="mt-1.5 text-[9px] font-bold uppercase tracking-wide text-[#6f6864]">
+                    <span className="mt-1 text-[8px] font-bold uppercase tracking-wide text-[#6f6864]">
                       {day.weekday}
                     </span>
                   </div>
 
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => !state.isOccupied && openNewBooking(day.dateStr)}
                     style={{ gridColumn: 2, gridRow: index + 1 }}
-                    className={`border-b border-[#e7dfdb] ${
+                    className={`border-b border-r border-[#ece6e2] text-center ${
                       day.isToday
                         ? 'bg-[#fff8f7]'
                         : day.isWeekend
@@ -274,44 +252,28 @@ export function MobileCalendarView() {
                     }`}
                   >
                     {!state.isOccupied && (
-                      <button
-                        type="button"
-                        onClick={() => openNewBooking(day.dateStr)}
-                        className="flex h-full w-full items-center justify-between gap-3 px-3 text-left transition-colors hover:bg-[#fff7f5]"
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <CircleDot className="h-4 w-4 flex-shrink-0 text-[#18a875]" />
-                          <span className="text-[11px] font-extrabold uppercase tracking-wide text-[#817873]">
-                            Available
-                          </span>
-                        </div>
-                        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-[#ff5a5f]">
-                          <CalendarPlus className="h-5 w-5" />
-                        </span>
-                      </button>
+                      <span className="text-[10px] font-extrabold text-[#c73e44]">
+                        + Book
+                      </span>
                     )}
-                  </div>
+                  </button>
                 </React.Fragment>
               );
             })}
 
             {bookingSpans.map((span) => {
               const booking = span.booking;
-              const channel = channelMeta[booking.channel];
               const occupiedBookingNights = getBookingOccupiedNights(booking);
-              const guestName = getGuestDisplayName(booking.guestName);
               const totalCents = occupiedBookingNights.reduce(
                 (sum, night) => sum + night.allocatedRevenueCents,
                 0
               );
-              const provisionalStripeClass =
+              const channelConfig =
+                CHANNEL_CONFIG[booking.channel] || CHANNEL_CONFIG.airbnb;
+              const stripe =
                 booking.status === 'provisional' && showProvisionalBlock
-                  ? 'bg-[linear-gradient(135deg,rgba(76,57,52,0.065)_25%,transparent_25%,transparent_50%,rgba(76,57,52,0.065)_50%,rgba(76,57,52,0.065)_75%,transparent_75%,transparent)] bg-[length:16px_16px]'
+                  ? 'bg-[linear-gradient(45deg,rgba(76,57,52,0.10)_25%,transparent_25%,transparent_50%,rgba(76,57,52,0.10)_50%,rgba(76,57,52,0.10)_75%,transparent_75%,transparent)] bg-[length:12px_12px]'
                   : '';
-
-              const revenueForNight = (dateStr: string) =>
-                occupiedBookingNights.find((night) => night.dateStr === dateStr)
-                  ?.allocatedRevenueCents ?? booking.nightlyRateCents;
 
               return (
                 <button
@@ -324,42 +286,57 @@ export function MobileCalendarView() {
                     gridColumn: 2,
                     gridRow: `${span.startIndex + 1} / span ${span.visibleDates.length}`,
                   }}
-                  className={`z-10 m-1.5 min-h-0 overflow-hidden rounded-2xl border text-left shadow-[0_5px_16px_rgba(52,42,37,0.08)] transition-transform active:scale-[0.99] ${channel.block} ${provisionalStripeClass}`}
+                  className="z-10 min-h-0 overflow-visible text-left"
+                  title={`${getGuestDisplayName(booking.guestName)} · ${booking.checkInDate} → ${booking.checkOutDate} · ${formatCents(totalCents)}`}
                 >
-                  <div className="grid h-full min-h-0 grid-cols-[106px_minmax(0,1fr)]">
-                    <div
-                      className={`flex min-h-0 flex-col items-center justify-center overflow-hidden border-r px-2.5 py-2 text-center ${channel.rail}`}
-                    >
-                      <span className="max-w-full break-words text-[11px] font-extrabold uppercase leading-[1.2]">
-                        {guestName}
-                      </span>
+                  <div
+                    className={`booking-span-card ${
+                      span.visibleDates.length <= 2
+                        ? 'booking-span-card--compact'
+                        : ''
+                    } ${channelConfig.colorClass} ${stripe}`}
+                    style={{
+                      position: 'relative',
+                      inset: 'auto',
+                      width: '100%',
+                      height: '100%',
+                    }}
+                  >
+                    <div className="booking-summary-rail">
+                      <div className="booking-summary-vertical">
+                        <span className="booking-summary-name">
+                          {getGuestDisplayName(booking.guestName)}
+                        </span>
+                        <strong className="booking-summary-total">
+                          {formatCents(totalCents)}
+                        </strong>
+                      </div>
                       <span
-                        className={`mt-2 rounded-md border px-1.5 py-1 text-[8px] font-extrabold leading-none ${channel.badge}`}
+                        className={`booking-channel-badge ${channelConfig.badgeClass}`}
                       >
-                        {channel.label}
+                        {channelConfig.name.slice(0, 3)}
                       </span>
-                      <strong className="mt-2 text-[11px] font-extrabold tabular-nums">
-                        {formatCents(totalCents)}
-                      </strong>
                     </div>
 
-                    <div className="min-h-0 divide-y divide-black/10">
-                      {span.visibleDates.map((dateStr, nightIndex) => (
-                        <div
-                          key={dateStr}
-                          className="flex min-h-0 h-full items-center justify-between gap-3 px-3"
-                          style={{
-                            height: `${100 / span.visibleDates.length}%`,
-                          }}
-                        >
-                          <span className="text-[11px] font-bold opacity-75">
-                            Night {nightIndex + 1}
-                          </span>
-                          <span className="text-[11px] font-extrabold tabular-nums">
-                            {formatCents(revenueForNight(dateStr))} / night
-                          </span>
-                        </div>
-                      ))}
+                    <div className="booking-night-list">
+                      {span.visibleDates.map((dateStr) => {
+                        const night = occupiedBookingNights.find(
+                          (item) => item.dateStr === dateStr
+                        );
+                        return (
+                          <div key={dateStr} className="booking-night-row">
+                            <span className="booking-night-date">
+                              {Number(dateStr.slice(-2))}
+                            </span>
+                            <span className="booking-night-rate">
+                              {formatCents(
+                                night?.allocatedRevenueCents ??
+                                  booking.nightlyRateCents
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </button>
