@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
-  Ban,
   Calendar as CalendarIcon,
   Copy,
   Save,
@@ -31,7 +30,6 @@ export function BookingModal() {
   const addBooking = useDashboardStore((state) => state.addBooking);
   const updateBooking = useDashboardStore((state) => state.updateBooking);
   const deleteBooking = useDashboardStore((state) => state.deleteBooking);
-  const cancelBooking = useDashboardStore((state) => state.cancelBooking);
   const openConfirmation = useDashboardStore((state) => state.openConfirmation);
 
   const isEditing = activeModal === 'booking_edit';
@@ -39,9 +37,10 @@ export function BookingModal() {
   const editingBooking = isEditing
     ? bookings.find((booking) => booking.id === modalParams.bookingId)
     : undefined;
-  const copiedBooking = isAdding && modalParams.copyFromBookingId
-    ? bookings.find((booking) => booking.id === modalParams.copyFromBookingId)
-    : undefined;
+  const copiedBooking =
+    isAdding && modalParams.copyFromBookingId
+      ? bookings.find((booking) => booking.id === modalParams.copyFromBookingId)
+      : undefined;
 
   const [propertyId, setPropertyId] = useState('');
   const [guestName, setGuestName] = useState('');
@@ -60,7 +59,7 @@ export function BookingModal() {
       setCheckInDate(editingBooking.checkInDate);
       setCheckOutDate(editingBooking.checkOutDate);
       setNightlyRate(euroInputFromCents(editingBooking.nightlyRateCents));
-      setStatus(editingBooking.status);
+      setStatus(editingBooking.status === 'provisional' ? 'provisional' : 'confirmed');
       setFormError(null);
       return;
     }
@@ -111,7 +110,9 @@ export function BookingModal() {
             booking.status !== 'cancelled' &&
             booking.id !== editingBooking?.id
         )
-        .flatMap((booking) => getBookingOccupiedNights(booking).map((night) => night.dateStr)),
+        .flatMap((booking) =>
+          getBookingOccupiedNights(booking).map((night) => night.dateStr)
+        ),
     [bookings, editingBooking?.id, propertyId]
   );
 
@@ -124,12 +125,9 @@ export function BookingModal() {
     value: property.id,
     label: property.name,
   }));
-  const statusOptions = [
+  const statusOptions: Array<{ value: BookingStatus; label: string }> = [
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'provisional', label: 'Provisional (Pending)' },
-    { value: 'checked_in', label: 'Checked In' },
-    { value: 'checked_out', label: 'Checked Out' },
-    { value: 'cancelled', label: 'Cancelled' },
   ];
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -162,9 +160,10 @@ export function BookingModal() {
       nightlyRateCents,
       status,
     };
-    const result = isEditing && editingBooking
-      ? updateBooking(editingBooking.id, payload)
-      : addBooking(payload);
+    const result =
+      isEditing && editingBooking
+        ? updateBooking(editingBooking.id, payload)
+        : addBooking(payload);
 
     if (!result.success) {
       setFormError(result.error || 'The reservation could not be saved.');
@@ -188,49 +187,59 @@ export function BookingModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-0 backdrop-blur-md sm:p-4">
-      <div className="relative flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden bg-slate-900 text-slate-100 shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:rounded-2xl sm:border sm:border-slate-700/90">
-        <header className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3.5 sm:px-5 sm:py-4">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="rounded-lg border border-[#ff3e00]/40 bg-[#ff3e00]/10 p-2 text-[#ff3e00]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#352b29]/40 p-0 backdrop-blur-sm sm:p-4">
+      <div className="relative flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden bg-white text-[#222222] shadow-[0_28px_90px_rgba(45,32,28,0.22)] sm:h-auto sm:max-h-[92dvh] sm:rounded-3xl sm:border sm:border-[#e7e2df]">
+        <header className="flex items-center justify-between border-b border-[#eee8e5] bg-[#fffaf9] px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="rounded-xl border border-[#ffd1ce] bg-[#fff0ef] p-2.5 text-[#d9474d]">
               <CalendarIcon className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="truncate font-display text-base font-black uppercase tracking-tight sm:text-lg">
-                {isEditing ? 'Edit Reservation' : copiedBooking ? 'Copy Reservation' : 'New Reservation'}
+              <h3 className="truncate font-display text-lg font-extrabold tracking-[-0.025em] text-[#222222] sm:text-xl">
+                {isEditing ? 'Edit reservation' : copiedBooking ? 'Copy reservation' : 'New reservation'}
               </h3>
-              <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:text-xs">
-                Reservation details
+              <p className="truncate text-xs font-medium text-[#717171]">
+                Add the essential reservation details.
               </p>
             </div>
           </div>
-          <button type="button" onClick={closeModal} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800" aria-label="Close reservation form">
+          <button
+            type="button"
+            onClick={closeModal}
+            className="rounded-xl p-2 text-[#717171] transition-colors hover:bg-[#f4efed] hover:text-[#222222]"
+            aria-label="Close reservation form"
+          >
             <X className="h-5 w-5" />
           </button>
         </header>
 
         <form onSubmit={handleSubmit} className="space-y-5 overflow-y-auto p-4 no-scrollbar sm:p-6">
           {formError && (
-            <div className="flex items-center gap-2.5 rounded-xl border border-rose-600/80 bg-rose-950/90 p-3.5 text-xs font-semibold text-rose-200">
-              <AlertCircle className="h-5 w-5 flex-shrink-0 text-rose-400" />
+            <div className="flex items-center gap-2.5 rounded-2xl border border-[#f5c7c4] bg-[#fff1f0] p-3.5 text-sm font-semibold text-[#a93439]">
+              <AlertCircle className="h-5 w-5 flex-shrink-0 text-[#d9474d]" />
               <span>{formError}</span>
             </div>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <CustomSelect label="Property" options={propertyOptions} value={propertyId} onChange={(value) => setPropertyId(String(value))} />
+            <CustomSelect
+              label="Property"
+              options={propertyOptions}
+              value={propertyId}
+              onChange={(value) => setPropertyId(String(value))}
+            />
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">Booking Channel</label>
-              <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-slate-800 bg-slate-950 p-1">
+              <label className="text-sm font-semibold text-[#4d4744]">Booking Channel</label>
+              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-[#e7e2df] bg-[#f8f6f5] p-1.5">
                 {Object.values(CHANNEL_CONFIG).map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setChannel(item.id as Channel)}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${
+                    className={`flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-bold transition-all ${
                       channel === item.id
-                        ? `${item.badgeClass} shadow-md`
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                        ? 'border-[#ffc7c4] bg-white text-[#c83f45] shadow-sm'
+                        : 'border-transparent text-[#717171] hover:bg-white hover:text-[#222222]'
                     }`}
                   >
                     <span className={`h-2 w-2 rounded-full ${item.dotColor}`} />
@@ -243,54 +252,112 @@ export function BookingModal() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">Guest Name *</span>
+              <span className="text-sm font-semibold text-[#4d4744]">Guest Name *</span>
               <span className="relative">
-                <User className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
-                <input type="text" required value={guestName} onChange={(event) => setGuestName(event.target.value)} className="w-full rounded-lg border border-slate-700/80 bg-slate-950 py-2.5 pl-9 pr-3.5 text-sm outline-none focus:ring-2 focus:ring-cyan-500/50" />
+                <User className="absolute left-3.5 top-3 h-4 w-4 text-[#9a918d]" />
+                <input
+                  type="text"
+                  required
+                  value={guestName}
+                  onChange={(event) => setGuestName(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white py-2.5 pl-10 pr-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
+                />
               </span>
             </label>
-            <CustomSelect label="Reservation Status" options={statusOptions} value={status} onChange={(value) => setStatus(value as BookingStatus)} />
+            <CustomSelect
+              label="Reservation Status"
+              options={statusOptions}
+              value={status}
+              onChange={(value) => setStatus(value as BookingStatus)}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <CustomDatePicker label="Check-In Date *" value={checkInDate} onChange={setCheckInDate} unavailableDates={unavailableDates} />
-            <CustomDatePicker label="Check-Out Date *" value={checkOutDate} onChange={setCheckOutDate} minDate={checkInDate} rangeStart={checkInDate} unavailableDates={unavailableDates} />
+            <CustomDatePicker
+              label="Check-In Date *"
+              value={checkInDate}
+              onChange={setCheckInDate}
+              unavailableDates={unavailableDates}
+            />
+            <CustomDatePicker
+              label="Check-Out Date *"
+              value={checkOutDate}
+              onChange={setCheckOutDate}
+              minDate={checkInDate}
+              rangeStart={checkInDate}
+              unavailableDates={unavailableDates}
+            />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-800 bg-slate-950 p-4 sm:grid-cols-2">
-            <label className="space-y-1.5 text-xs font-semibold text-slate-300">
-              <span className="block uppercase tracking-wider">Nightly Rate (€) *</span>
-              <input type="number" min="0" step="0.01" required value={nightlyRate} onChange={(event) => setNightlyRate(event.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm outline-none focus:ring-1 focus:ring-cyan-500" />
+          <div className="grid grid-cols-1 gap-4 rounded-2xl border border-[#eee8e5] bg-[#fffaf9] p-4 sm:grid-cols-2">
+            <label className="space-y-1.5 text-sm font-semibold text-[#4d4744]">
+              <span className="block">Nightly Rate (€) *</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={nightlyRate}
+                onChange={(event) => setNightlyRate(event.target.value)}
+                className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
+              />
             </label>
-            <label className="space-y-1.5 text-xs font-semibold text-slate-300">
-              <span className="flex items-center justify-between gap-2 uppercase tracking-wider">
+            <label className="space-y-1.5 text-sm font-semibold text-[#4d4744]">
+              <span className="flex items-center justify-between gap-2">
                 <span>Total (€)</span>
-                <span className="text-[10px] font-medium normal-case tracking-normal text-slate-500">{nightsCount} {nightsCount === 1 ? 'night' : 'nights'}</span>
+                <span className="text-xs font-medium text-[#8a817d]">
+                  {nightsCount} {nightsCount === 1 ? 'night' : 'nights'}
+                </span>
               </span>
-              <input type="text" readOnly value={nightsCount > 0 ? euroInputFromCents(totalCents) : ''} placeholder="Select dates" className="h-10 w-full cursor-not-allowed rounded-lg border border-cyan-800 bg-cyan-950/20 px-3 text-sm font-bold text-cyan-100" />
+              <input
+                type="text"
+                readOnly
+                value={nightsCount > 0 ? euroInputFromCents(totalCents) : ''}
+                placeholder="Select dates"
+                className="h-11 w-full cursor-not-allowed rounded-xl border border-[#ffcfc9] bg-[#fff1ef] px-3.5 text-sm font-bold text-[#a93439] placeholder:text-[#b98d89]"
+              />
             </label>
           </div>
 
-          <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-900/95 py-3 backdrop-blur">
+          <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-[#eee8e5] bg-white/95 py-3 backdrop-blur">
             {isEditing && editingBooking ? (
               <div className="flex items-center gap-2">
-                <button type="button" onClick={handleDelete} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-800 bg-rose-950 px-3 text-xs font-semibold text-rose-300">
-                  <Trash2 className="h-4 w-4" /><span className="hidden sm:inline">Delete</span>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="flex h-10 items-center gap-1.5 rounded-xl border border-[#f1c9c6] bg-[#fff5f4] px-3 text-xs font-bold text-[#b13a40] transition-colors hover:bg-[#ffebe9]"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Delete</span>
                 </button>
-                <button type="button" onClick={() => openModal('booking_add', { copyFromBookingId: editingBooking.id })} className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-800 px-3 text-xs font-semibold">
-                  <Copy className="h-4 w-4" /><span className="hidden sm:inline">Copy</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openModal('booking_add', { copyFromBookingId: editingBooking.id })
+                  }
+                  className="flex h-10 items-center gap-1.5 rounded-xl border border-[#e7e2df] bg-white px-3 text-xs font-bold text-[#4f4f4f] transition-colors hover:bg-[#f8f6f5]"
+                >
+                  <Copy className="h-4 w-4" />
+                  <span className="hidden sm:inline">Copy</span>
                 </button>
-                {editingBooking.status !== 'cancelled' && (
-                  <button type="button" onClick={() => { cancelBooking(editingBooking.id); closeModal(); }} className="flex h-9 items-center gap-1.5 rounded-lg border border-amber-800 bg-amber-950 px-3 text-xs font-semibold text-amber-300">
-                    <Ban className="h-4 w-4" /><span className="hidden sm:inline">Cancel</span>
-                  </button>
-                )}
               </div>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
             <div className="ml-auto flex items-center gap-2">
-              <button type="button" onClick={closeModal} className="h-10 rounded-lg border border-slate-700 bg-slate-800 px-4 text-xs font-semibold text-slate-300">Cancel</button>
-              <button type="submit" className="flex h-10 items-center gap-2 rounded-lg bg-[#ff3e00] px-5 text-xs font-black uppercase tracking-wider text-white">
-                <Save className="h-4 w-4" />{isEditing ? 'Save Changes' : 'Create Booking'}
+              <button
+                type="button"
+                onClick={closeModal}
+                className="h-10 rounded-xl border border-[#ded8d4] bg-white px-4 text-xs font-bold text-[#5f5f5f] transition-colors hover:bg-[#f8f6f5]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex h-10 items-center gap-2 rounded-xl bg-[#ff5a5f] px-5 text-xs font-bold text-white shadow-[0_8px_18px_rgba(255,90,95,0.22)] transition-colors hover:bg-[#e94f54]"
+              >
+                <Save className="h-4 w-4" />
+                {isEditing ? 'Save Changes' : 'Create Booking'}
               </button>
             </div>
           </footer>

@@ -109,8 +109,7 @@ export function CustomSelect<T extends string | number>({
 
   const openMenu = (preferredIndex?: number) => {
     if (disabled || options.length === 0) return;
-    const nextIndex =
-      preferredIndex ?? (selectedIndex >= 0 ? selectedIndex : 0);
+    const nextIndex = preferredIndex ?? (selectedIndex >= 0 ? selectedIndex : 0);
     setActiveIndex(nextIndex);
     setIsOpen(true);
     window.requestAnimationFrame(updatePosition);
@@ -132,9 +131,7 @@ export function CustomSelect<T extends string | number>({
       const target = event.target as Node;
       const insideTrigger = containerRef.current?.contains(target);
       const insideMenu = menuRef.current?.contains(target);
-      if (!insideTrigger && !insideMenu) {
-        closeMenu(false);
-      }
+      if (!insideTrigger && !insideMenu) closeMenu(false);
     };
 
     const handleViewportChange = () => updatePosition();
@@ -166,31 +163,22 @@ export function CustomSelect<T extends string | number>({
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      if (isOpen) {
-        selectOption(activeIndex >= 0 ? activeIndex : selectedIndex);
-      } else {
-        openMenu();
-      }
+      if (isOpen) selectOption(activeIndex >= 0 ? activeIndex : selectedIndex);
+      else openMenu();
       return;
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (!isOpen) {
-        openMenu(selectedIndex >= 0 ? selectedIndex : 0);
-      } else {
-        setActiveIndex((current) => (current + 1 + options.length) % options.length);
-      }
+      if (!isOpen) openMenu(selectedIndex >= 0 ? selectedIndex : 0);
+      else setActiveIndex((current) => (current + 1 + options.length) % options.length);
       return;
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (!isOpen) {
-        openMenu(selectedIndex >= 0 ? selectedIndex : options.length - 1);
-      } else {
-        setActiveIndex((current) => (current - 1 + options.length) % options.length);
-      }
+      if (!isOpen) openMenu(selectedIndex >= 0 ? selectedIndex : options.length - 1);
+      else setActiveIndex((current) => (current - 1 + options.length) % options.length);
       return;
     }
 
@@ -231,7 +219,7 @@ export function CustomSelect<T extends string | number>({
             tabIndex={-1}
             aria-labelledby={selectId}
             onKeyDown={handleMenuKeyDown}
-            className="fixed z-[10000] overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 py-1 text-sm text-slate-100 shadow-2xl outline-none no-scrollbar"
+            className="fixed z-[10000] overflow-y-auto rounded-2xl border border-[#ded8d4] bg-white py-1.5 text-sm text-[#222222] shadow-[0_18px_55px_rgba(45,32,28,0.18)] outline-none no-scrollbar"
             style={{
               left: menuPosition.left,
               width: menuPosition.width,
@@ -255,12 +243,12 @@ export function CustomSelect<T extends string | number>({
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectOption(index)}
-                  className={`flex min-h-10 w-full cursor-pointer items-center justify-between gap-3 px-3.5 py-2.5 transition-colors ${
+                  className={`mx-1 flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 transition-colors ${
                     isSelected
-                      ? 'bg-cyan-950/90 font-medium text-cyan-200'
+                      ? 'bg-[#fff0ef] font-semibold text-[#c83f45]'
                       : isActive
-                        ? 'bg-slate-800 text-slate-100'
-                        : 'text-slate-200 hover:bg-slate-800/80'
+                        ? 'bg-[#f8f6f5] text-[#222222]'
+                        : 'text-[#4f4f4f] hover:bg-[#f8f6f5]'
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-2">
@@ -269,7 +257,7 @@ export function CustomSelect<T extends string | number>({
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
                     {option.badge}
-                    {isSelected && <Check className="h-4 w-4 text-cyan-400" />}
+                    {isSelected && <Check className="h-4 w-4 text-[#d9474d]" />}
                   </div>
                 </li>
               );
@@ -282,7 +270,7 @@ export function CustomSelect<T extends string | number>({
   return (
     <div className={`relative flex min-w-0 flex-col gap-1.5 ${className}`} ref={containerRef}>
       {label && (
-        <label htmlFor={selectId} className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+        <label htmlFor={selectId} className="text-sm font-semibold text-[#4d4744]">
           {label}
         </label>
       )}
@@ -297,23 +285,27 @@ export function CustomSelect<T extends string | number>({
         aria-haspopup="listbox"
         aria-controls={menuId}
         aria-expanded={isOpen}
-        className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border px-3.5 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+        className={`flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#ff5a5f]/10 ${
           disabled
-            ? 'cursor-not-allowed border-slate-800 bg-slate-900/50 text-slate-500 opacity-50'
-            : 'cursor-pointer border-slate-700/80 bg-slate-900 text-slate-100 hover:border-slate-600'
-        } ${error ? 'border-rose-500 ring-1 ring-rose-500/40' : ''}`}
+            ? 'cursor-not-allowed border-[#e7e2df] bg-[#f5f2f0] text-[#aaa3a0] opacity-60'
+            : 'cursor-pointer border-[#ded8d4] bg-white text-[#222222] hover:border-[#cfc6c1] focus:border-[#ff5a5f]'
+        } ${error ? 'border-[#d9474d] ring-1 ring-[#d9474d]/20' : ''}`}
       >
         <div className="flex min-w-0 items-center gap-2">
           {selectedOption?.icon}
           <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-          {selectedOption?.badge && <div className="ml-auto flex-shrink-0">{selectedOption.badge}</div>}
+          {selectedOption?.badge && (
+            <div className="ml-auto flex-shrink-0">{selectedOption.badge}</div>
+          )}
         </div>
         <ChevronDown
-          className={`h-4 w-4 flex-shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 flex-shrink-0 text-[#8a817d] transition-transform ${
+            isOpen ? 'rotate-180' : ''
+          }`}
         />
       </button>
 
-      {error && <span className="text-xs font-medium text-rose-400">{error}</span>}
+      {error && <span className="text-xs font-medium text-[#b13a40]">{error}</span>}
       {menu}
     </div>
   );

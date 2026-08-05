@@ -36,7 +36,7 @@ export function MonthYearNavigator() {
             type="button"
             onClick={prevMonth}
             aria-label="Previous Month"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-900 text-slate-200 transition-colors hover:bg-slate-800"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e7e2df] bg-white text-[#4f4f4f] shadow-sm transition-colors hover:bg-[#fff8f7]"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -44,10 +44,10 @@ export function MonthYearNavigator() {
           <button
             type="button"
             onClick={goToToday}
-            className={`flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[9px] font-black uppercase tracking-wider transition-colors sm:px-3.5 sm:text-xs ${
+            className={`flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[10px] font-bold transition-colors sm:px-3.5 sm:text-xs ${
               isCurrentMonthSelected
-                ? 'border-[#ff3e00]/60 bg-[#ff3e00]/20 text-[#ff3e00]'
-                : 'border-slate-700/80 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+                ? 'border-[#ffc7c4] bg-[#fff0ef] text-[#c93f45]'
+                : 'border-[#e7e2df] bg-white text-[#4f4f4f] hover:bg-[#fff8f7]'
             }`}
           >
             <Calendar className="h-3.5 w-3.5" />
@@ -58,7 +58,7 @@ export function MonthYearNavigator() {
             type="button"
             onClick={nextMonth}
             aria-label="Next Month"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-900 text-slate-200 transition-colors hover:bg-slate-800"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e7e2df] bg-white text-[#4f4f4f] shadow-sm transition-colors hover:bg-[#fff8f7]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -80,7 +80,7 @@ export function MonthYearNavigator() {
         </div>
       </div>
 
-      <div className="flex snap-x snap-mandatory items-center gap-1 overflow-x-auto border-b border-slate-800/80 pb-1 pt-1 no-scrollbar">
+      <div className="flex snap-x snap-mandatory items-center gap-1 overflow-x-auto border-b border-[#e7e2df] pb-1 pt-1 no-scrollbar">
         {MONTH_SHORT_NAMES.map((shortName, index) => {
           const monthNumber = index + 1;
           const isSelected = selectedMonth === monthNumber;
@@ -92,16 +92,16 @@ export function MonthYearNavigator() {
               key={shortName}
               type="button"
               onClick={() => setSelectedMonth(monthNumber)}
-              className={`snap-start whitespace-nowrap rounded-t-lg border-x border-t px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all sm:px-3.5 sm:text-xs ${
+              className={`snap-start whitespace-nowrap rounded-t-xl border-x border-t px-3 py-1.5 text-[10px] font-bold transition-all sm:px-3.5 sm:text-xs ${
                 isSelected
-                  ? 'border-slate-700/80 border-b-2 border-b-[#ff3e00] bg-slate-900 text-[#ff3e00] shadow-md'
-                  : 'border-transparent bg-slate-950 text-slate-500 hover:bg-slate-900/40 hover:text-slate-200'
+                  ? 'border-[#e7e2df] border-b-2 border-b-[#ff5a5f] bg-white text-[#c93f45] shadow-sm'
+                  : 'border-transparent bg-transparent text-[#8a8a8a] hover:bg-white hover:text-[#3d3d3d]'
               }`}
             >
               <span className="flex items-center gap-1.5">
                 {shortName}
                 {isTodayMonth && (
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ff3e00]" title="Current Month" />
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ff5a5f]" title="Current Month" />
                 )}
               </span>
             </button>

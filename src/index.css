@@ -1,12 +1,45 @@
 @import "tailwindcss";
 
-@layer base {
-  body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
-  ::selection { background-color: #ff3e00; color: #ffffff; }
+:root {
+  color-scheme: light;
+  background: #f7f7f5;
 }
 
-.font-display { font-family: 'Syne', sans-serif; }
-.font-mono { font-family: 'JetBrains Mono', monospace; }
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    background: #f7f7f5;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #222222;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  ::selection {
+    background-color: #ffd9d6;
+    color: #7f292e;
+  }
+}
+
+.font-display {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 
 .dashboard-day-column { width: 96px; min-width: 96px; flex: 0 0 96px; overflow: hidden; }
 .dashboard-property-column { width: 190px; min-width: 190px; flex: 0 0 190px; overflow: hidden; }
@@ -24,7 +57,7 @@
 .ledger-balance-row { height: 58px; min-height: 58px; }
 .ledger-report-row { height: 98px; min-height: 98px; }
 .ledger-booking-row, .ledger-rent-row, .ledger-extra-row, .ledger-expenses-row, .ledger-total-row, .ledger-balance-row, .ledger-report-row { min-width: 0; max-width: 100%; overflow: hidden; }
-.dashboard-day-column > .ledger-booking-row, .dashboard-day-column > .ledger-rent-row, .dashboard-day-column > .ledger-extra-row, .dashboard-day-column > .ledger-expenses-row, .dashboard-day-column > .ledger-total-row, .dashboard-day-column > .ledger-balance-row, .dashboard-day-column > .ledger-report-row { padding-left: 6px !important; padding-right: 6px !important; font-size: 9px; line-height: 1.05; letter-spacing: .025em; white-space: normal; overflow-wrap: anywhere; }
+.dashboard-day-column > .ledger-booking-row, .dashboard-day-column > .ledger-rent-row, .dashboard-day-column > .ledger-extra-row, .dashboard-day-column > .ledger-expenses-row, .dashboard-day-column > .ledger-total-row, .dashboard-day-column > .ledger-balance-row, .dashboard-day-column > .ledger-report-row { padding-left: 6px !important; padding-right: 6px !important; font-size: 9px; line-height: 1.05; letter-spacing: .01em; white-space: normal; overflow-wrap: anywhere; }
 .dashboard-property-column span, .dashboard-total-column span { min-width: 0; max-width: 100%; }
 .dashboard-property-column .font-mono, .dashboard-total-column .font-mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -37,15 +70,109 @@ form[class~="overflow-y-auto"] { -ms-overflow-style: none; scrollbar-width: none
 form[class~="overflow-y-auto"]::-webkit-scrollbar { display: none; width: 0; height: 0; }
 input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
-input[type="checkbox"] { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; min-width: 14px; margin: 0; border: 1px solid #475569; border-radius: 3px; background: #020617; display: inline-grid; place-content: center; cursor: pointer; }
-input[type="checkbox"]::before { content: ""; width: 7px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) scale(0); transition: transform 120ms ease; }
-input[type="checkbox"]:checked { border-color: #06b6d4; background: #06b6d4; }
+input[type="checkbox"] { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; min-width: 16px; margin: 0; border: 1px solid #cfc6c1; border-radius: 5px; background: #ffffff; display: inline-grid; place-content: center; cursor: pointer; }
+input[type="checkbox"]::before { content: ""; width: 8px; height: 5px; border-left: 2px solid #ffffff; border-bottom: 2px solid #ffffff; transform: rotate(-45deg) scale(0); transition: transform 120ms ease; }
+input[type="checkbox"]:checked { border-color: #ff5a5f; background: #ff5a5f; }
 input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
-input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(6,182,212,.22); }
+input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(255,90,95,.14); }
 input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .55; }
 
+/* Light compatibility layer for legacy dark utility classes. */
+[data-theme="airbnb"] [class~="bg-slate-950"] { background-color: #f7f7f5 !important; }
+[data-theme="airbnb"] [class~="bg-slate-950/90"],
+[data-theme="airbnb"] [class~="bg-slate-950/65"],
+[data-theme="airbnb"] [class~="bg-slate-950/60"],
+[data-theme="airbnb"] [class~="bg-slate-950/55"],
+[data-theme="airbnb"] [class~="bg-slate-950/40"],
+[data-theme="airbnb"] [class~="bg-slate-950/20"] { background-color: #fffdfc !important; }
+[data-theme="airbnb"] [class~="bg-slate-900"],
+[data-theme="airbnb"] [class~="bg-slate-900/95"],
+[data-theme="airbnb"] [class~="bg-slate-900/90"],
+[data-theme="airbnb"] [class~="bg-slate-900/50"],
+[data-theme="airbnb"] [class~="bg-slate-900/40"] { background-color: #ffffff !important; }
+[data-theme="airbnb"] [class~="bg-slate-800"],
+[data-theme="airbnb"] [class~="bg-slate-800/80"],
+[data-theme="airbnb"] [class~="bg-slate-800/50"] { background-color: #f4f1ef !important; }
+[data-theme="airbnb"] [class~="hover:bg-slate-800"]:hover,
+[data-theme="airbnb"] [class~="hover:bg-slate-800/80"]:hover,
+[data-theme="airbnb"] [class~="hover:bg-slate-900"]:hover,
+[data-theme="airbnb"] [class~="hover:bg-slate-900/40"]:hover { background-color: #fff5f3 !important; }
+
+[data-theme="airbnb"] [class~="border-slate-900"],
+[data-theme="airbnb"] [class~="border-slate-800"],
+[data-theme="airbnb"] [class~="border-slate-800/80"],
+[data-theme="airbnb"] [class~="border-slate-700"],
+[data-theme="airbnb"] [class~="border-slate-700/90"],
+[data-theme="airbnb"] [class~="border-slate-700/80"],
+[data-theme="airbnb"] [class~="border-slate-600"] { border-color: #e7e2df !important; }
+
+[data-theme="airbnb"] [class~="text-slate-100"],
+[data-theme="airbnb"] [class~="text-slate-200"],
+[data-theme="airbnb"] [class~="text-slate-300"] { color: #2d2d2d !important; }
+[data-theme="airbnb"] [class~="text-slate-400"] { color: #717171 !important; }
+[data-theme="airbnb"] [class~="text-slate-500"] { color: #8a817d !important; }
+[data-theme="airbnb"] [class~="text-slate-600"] { color: #aaa3a0 !important; }
+[data-theme="airbnb"] [class~="hover:text-slate-100"]:hover,
+[data-theme="airbnb"] [class~="hover:text-slate-200"]:hover { color: #222222 !important; }
+
+[data-theme="airbnb"] [class~="bg-cyan-600"] { background-color: #ff5a5f !important; }
+[data-theme="airbnb"] [class~="bg-cyan-950"],
+[data-theme="airbnb"] [class~="bg-cyan-950/90"],
+[data-theme="airbnb"] [class~="bg-cyan-950/60"],
+[data-theme="airbnb"] [class~="bg-cyan-950/30"],
+[data-theme="airbnb"] [class~="bg-cyan-950/20"] { background-color: #fff0ef !important; }
+[data-theme="airbnb"] [class~="text-cyan-200"],
+[data-theme="airbnb"] [class~="text-cyan-300"],
+[data-theme="airbnb"] [class~="text-cyan-400"] { color: #c83f45 !important; }
+[data-theme="airbnb"] [class~="border-cyan-900"],
+[data-theme="airbnb"] [class~="border-cyan-800"],
+[data-theme="airbnb"] [class~="border-cyan-800/60"],
+[data-theme="airbnb"] [class~="border-cyan-700/70"],
+[data-theme="airbnb"] [class~="border-cyan-600"] { border-color: #ffc7c4 !important; }
+
+[data-theme="airbnb"] [class~="bg-rose-950"],
+[data-theme="airbnb"] [class~="bg-rose-950/90"],
+[data-theme="airbnb"] [class~="bg-rose-950/40"],
+[data-theme="airbnb"] [class~="bg-rose-950/20"] { background-color: #fff5f4 !important; }
+[data-theme="airbnb"] [class~="text-rose-200"],
+[data-theme="airbnb"] [class~="text-rose-300"],
+[data-theme="airbnb"] [class~="text-rose-400"] { color: #b13a40 !important; }
+[data-theme="airbnb"] [class~="border-rose-900"],
+[data-theme="airbnb"] [class~="border-rose-800"],
+[data-theme="airbnb"] [class~="border-rose-700"],
+[data-theme="airbnb"] [class~="border-rose-600/80"] { border-color: #f1c9c6 !important; }
+
+[data-theme="airbnb"] [class~="bg-amber-950"],
+[data-theme="airbnb"] [class~="bg-amber-950/20"] { background-color: #fff8ea !important; }
+[data-theme="airbnb"] [class~="text-amber-300"],
+[data-theme="airbnb"] [class~="text-amber-400"] { color: #946512 !important; }
+[data-theme="airbnb"] [class~="border-amber-800"] { border-color: #efdba9 !important; }
+
+[data-theme="airbnb"] [class~="text-emerald-300"],
+[data-theme="airbnb"] [class~="text-emerald-400"] { color: #237a59 !important; }
+[data-theme="airbnb"] [class~="bg-emerald-950"] { background-color: #eef8f3 !important; }
+[data-theme="airbnb"] [class~="border-emerald-800"],
+[data-theme="airbnb"] [class~="border-emerald-700"] { border-color: #bfe3d3 !important; }
+
+[data-theme="airbnb"] [class~="text-violet-200"],
+[data-theme="airbnb"] [class~="text-violet-300"] { color: #69518f !important; }
+[data-theme="airbnb"] [class~="bg-yellow-950/65"] { background-color: #fff8e8 !important; }
+[data-theme="airbnb"] [class~="border-yellow-800/80"] { border-color: #ead8a9 !important; }
+
+[data-theme="airbnb"] [class~="bg-[#ff3e00]"] { background-color: #ff5a5f !important; }
+[data-theme="airbnb"] [class~="bg-[#ff3e00]/20"],
+[data-theme="airbnb"] [class~="bg-[#ff3e00]/10"] { background-color: #fff0ef !important; }
+[data-theme="airbnb"] [class~="text-[#ff3e00]"] { color: #d9474d !important; }
+[data-theme="airbnb"] [class~="border-[#ff3e00]/60"],
+[data-theme="airbnb"] [class~="border-[#ff3e00]/40"] { border-color: #ffc7c4 !important; }
+
+[data-theme="airbnb"] section,
+[data-theme="airbnb"] article {
+  scrollbar-color: #cfc6c1 transparent;
+}
+
 @media (max-width: 640px) {
-  .dashboard-day-column > .ledger-booking-row, .dashboard-day-column > .ledger-rent-row, .dashboard-day-column > .ledger-extra-row, .dashboard-day-column > .ledger-expenses-row, .dashboard-day-column > .ledger-total-row, .dashboard-day-column > .ledger-balance-row, .dashboard-day-column > .ledger-report-row { padding-left: 5px !important; padding-right: 5px !important; font-size: 8px; line-height: 1; letter-spacing: .01em; }
+  .dashboard-day-column > .ledger-booking-row, .dashboard-day-column > .ledger-rent-row, .dashboard-day-column > .ledger-extra-row, .dashboard-day-column > .ledger-expenses-row, .dashboard-day-column > .ledger-total-row, .dashboard-day-column > .ledger-balance-row, .dashboard-day-column > .ledger-report-row { padding-left: 5px !important; padding-right: 5px !important; font-size: 8px; line-height: 1; letter-spacing: 0; }
   [class~="w-screen"][class~="sticky"][class~="left-0"] { gap: 8px !important; padding-left: 8px !important; padding-right: 8px !important; }
   section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] p { display: none; }
   section[class~="w-max"] > [class~="w-screen"][class~="sticky"][class~="left-0"] > button { flex: 0 0 auto; width: 30px; height: 30px; padding: 6px !important; gap: 0 !important; overflow: hidden; font-size: 0 !important; }
@@ -54,9 +181,9 @@ input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .55; }
 
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f7f7f5; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #cfc6c1; border-radius: 999px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #b9aea8; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }

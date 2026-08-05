@@ -24,12 +24,21 @@ export function AppShell() {
   );
 
   return (
-    <div className="flex h-[100dvh] w-full select-none flex-col overflow-hidden bg-slate-950 font-sans text-slate-100 antialiased">
+    <div
+      data-theme="airbnb"
+      className="flex h-[100dvh] w-full select-none flex-col overflow-hidden bg-[#f7f7f5] font-sans text-[#222222] antialiased"
+    >
       <NativeSelectEnhancer />
       <DashboardHeader />
       <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden p-3 sm:p-4">
         {mainViewMode === 'analytics' ? (
-          <Suspense fallback={<div className="flex flex-1 items-center justify-center text-xs text-slate-500">Loading reports…</div>}>
+          <Suspense
+            fallback={
+              <div className="flex flex-1 items-center justify-center text-sm text-[#717171]">
+                Loading reports…
+              </div>
+            }
+          >
             <ReportsDashboard key={propertyCatalogKey} />
           </Suspense>
         ) : (
