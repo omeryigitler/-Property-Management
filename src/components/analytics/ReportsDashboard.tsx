@@ -20,6 +20,7 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
+  LabelList,
   Legend,
   Line,
   Pie,
@@ -538,6 +539,10 @@ export function ReportsDashboard() {
         : `${selectedYear} full year`
       : `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
   const topProperty = propertyRanking[0] ?? null;
+  const channelTotalCents = channelSeries.reduce(
+    (sum, item) => sum + item.bookingIncomeCents,
+    0
+  );
 
   return (
     <div className="h-full min-h-0 overflow-y-auto pb-4 no-scrollbar">
@@ -798,30 +803,76 @@ export function ReportsDashboard() {
             subtitle="Confirmed reservation income by platform"
           >
             {channelSeries.length ? (
-              <div className="h-[360px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={channelSeries}
-                      dataKey="bookingIncomeCents"
-                      nameKey="label"
-                      innerRadius="52%"
-                      outerRadius="78%"
-                      paddingAngle={3}
-                    >
-                      {channelSeries.map((item) => (
-                        <Cell
-                          key={item.channel}
-                          fill={CHANNEL_CONFIG[item.channel].hex}
+              <div className="grid min-h-[360px] grid-rows-[250px_auto] gap-3">
+                <div className="relative h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={channelSeries}
+                        dataKey="bookingIncomeCents"
+                        nameKey="label"
+                        innerRadius="50%"
+                        outerRadius="78%"
+                        paddingAngle={3}
+                      >
+                        {channelSeries.map((item) => (
+                          <Cell
+                            key={item.channel}
+                            fill={CHANNEL_CONFIG[item.channel].hex}
+                          />
+                        ))}
+                        <LabelList
+                          dataKey="incomeSharePct"
+                          position="inside"
+                          formatter={(value) => `${Number(value).toFixed(0)}%`}
+                          fill="#ffffff"
+                          fontSize={11}
+                          fontWeight={800}
                         />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => formatCents(value)}
-                      contentStyle={tooltipStyle}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => formatCents(value)}
+                        contentStyle={tooltipStyle}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <span className="block text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#817975]">
+                        Total
+                      </span>
+                      <strong className="mt-1 block font-mono text-lg font-extrabold text-[#292422]">
+                        {formatCents(channelTotalCents)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-1">
+                  {channelSeries.map((item) => (
+                    <div
+                      key={item.channel}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[#eee8e5] bg-[#fffdfc] px-3 py-2"
+                    >
+                      <span className="flex min-w-0 items-center gap-2 text-xs font-bold text-[#3c3734]">
+                        <span
+                          className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                          style={{
+                            backgroundColor: CHANNEL_CONFIG[item.channel].hex,
+                          }}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      <span className="text-right">
+                        <strong className="block font-mono text-xs text-[#292422]">
+                          {formatCents(item.bookingIncomeCents)}
+                        </strong>
+                        <small className="block text-[9px] font-bold text-[#817975]">
+                          {item.incomeSharePct.toFixed(1)}%
+                        </small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="flex h-[360px] items-center justify-center text-sm font-medium text-[#817975]">
