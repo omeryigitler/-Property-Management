@@ -7,7 +7,11 @@ import {
   PropertyFinancials,
 } from '../types';
 import { ALL_PROPERTIES } from '../config/locations';
-import { calculateNights, parseDateString, toDateString } from '../utils/dateUtilities';
+import {
+  calculateNights,
+  parseDateString,
+  toDateString,
+} from '../utils/dateUtilities';
 
 function nonNegativeInteger(value: number | null | undefined): number {
   if (!Number.isFinite(value)) return 0;
@@ -17,7 +21,10 @@ function nonNegativeInteger(value: number | null | undefined): number {
 export function calculateBookingRevenue(booking: Booking): number {
   if (booking.status === 'cancelled') return 0;
   const nights = calculateNights(booking.checkInDate, booking.checkOutDate);
-  return nights > 0 ? nights * nonNegativeInteger(booking.nightlyRateCents) : 0;
+  if (nights <= 0) return 0;
+  return booking.totalAmountCents == null
+    ? nights * nonNegativeInteger(booking.nightlyRateCents)
+    : nonNegativeInteger(booking.totalAmountCents);
 }
 
 export interface MonthlyAllocatedNight {
@@ -29,14 +36,28 @@ export interface MonthlyAllocatedNight {
   revenueCents: number;
 }
 
-export function getBookingMonthlyAllocatedNights(booking: Booking): MonthlyAllocatedNight[] {
+export function getBookingMonthlyAllocatedNights(
+  booking: Booking
+): MonthlyAllocatedNight[] {
   if (booking.status === 'cancelled') return [];
   const totalNights = calculateNights(booking.checkInDate, booking.checkOutDate);
   if (totalNights <= 0) return [];
 
+  const exactTotalCents =
+    booking.totalAmountCents == null
+      ? null
+      : nonNegativeInteger(booking.totalAmountCents);
+  const baseRevenueCents =
+    exactTotalCents == null
+      ? nonNegativeInteger(booking.nightlyRateCents)
+      : Math.floor(exactTotalCents / totalNights);
+  const remainderCents =
+    exactTotalCents == null
+      ? 0
+      : exactTotalCents - baseRevenueCents * totalNights;
+
   const result: MonthlyAllocatedNight[] = [];
   let currentDate = parseDateString(booking.checkInDate);
-  const nightlyRateCents = nonNegativeInteger(booking.nightlyRateCents);
 
   for (let index = 0; index < totalNights; index += 1) {
     result.push({
@@ -45,7 +66,7 @@ export function getBookingMonthlyAllocatedNights(booking: Booking): MonthlyAlloc
       month: currentDate.getMonth() + 1,
       nightIndex: index + 1,
       totalNights,
-      revenueCents: nightlyRateCents,
+      revenueCents: baseRevenueCents + (index < remainderCents ? 1 : 0),
     });
     currentDate = addDays(currentDate, 1);
   }
@@ -62,7 +83,10 @@ export function calculatePropertyFinancials(
   extraIncomes: ExtraIncome[]
 ): PropertyFinancials {
   const bookingIncomeCents = bookings
-    .filter((booking) => booking.propertyId === propertyId && booking.status !== 'cancelled')
+    .filter(
+      (booking) =>
+        booking.propertyId === propertyId && booking.status !== 'cancelled'
+    )
     .flatMap(getBookingMonthlyAllocatedNights)
     .filter((night) => night.year === year && night.month === month)
     .reduce((sum, night) => sum + night.revenueCents, 0);
@@ -70,14 +94,18 @@ export function calculatePropertyFinancials(
   const extraIncomeCents = extraIncomes
     .filter(
       (income) =>
-        income.propertyId === propertyId && income.year === year && income.month === month
+        income.propertyId === propertyId &&
+        income.year === year &&
+        income.month === month
     )
     .reduce((sum, income) => sum + nonNegativeInteger(income.amountCents), 0);
 
   const totalExpensesCents = expenses
     .filter(
       (expense) =>
-        expense.propertyId === propertyId && expense.year === year && expense.month === month
+        expense.propertyId === propertyId &&
+        expense.year === year &&
+        expense.month === month
     )
     .reduce((sum, expense) => sum + nonNegativeInteger(expense.amountCents), 0);
 
@@ -86,7 +114,8 @@ export function calculatePropertyFinancials(
     bookingIncomeCents,
     extraIncomeCents,
     totalExpensesCents,
-    netBalanceCents: bookingIncomeCents + extraIncomeCents - totalExpensesCents,
+    netBalanceCents:
+      bookingIncomeCents + extraIncomeCents - totalExpensesCents,
   };
 }
 

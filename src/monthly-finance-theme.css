@@ -108,6 +108,15 @@
   color: #5f5753 !important;
 }
 
+/* Recurring automation is not implemented; keep the simple finance form honest. */
+[data-theme="airbnb"] [class~="xl:grid-cols-2"]
+  > [class~="bg-slate-950/75"]
+  [class~="border-rose-900/60"]
+  [class~="grid-cols-[minmax(0,1fr)_auto]"]
+  > label {
+  display: none !important;
+}
+
 [data-theme="airbnb"] button[class~="sticky"][class~="bottom-0"][class~="bg-[#ff3e00]"] {
   background: #ff5a5f !important;
   color: #ffffff !important;

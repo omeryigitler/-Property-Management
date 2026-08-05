@@ -76,6 +76,33 @@ test('backup validation rejects properties linked to missing locations', () => {
   assert.match(validation.error ?? '', /location/i);
 });
 
+test('backup validation rejects overlapping reservations in the same property', () => {
+  const backup = generate(true);
+  backup.bookings = [
+    booking(),
+    {
+      ...booking(),
+      id: 'overlapping-booking',
+      guestName: 'Second Guest',
+      checkInDate: '2026-08-02',
+      checkOutDate: '2026-08-04',
+    },
+  ];
+  const validation = validateBackupJson(backup);
+  assert.equal(validation.isValid, false);
+  assert.match(validation.error ?? '', /overlapping/i);
+});
+
+test('legacy backup records must reference an existing property', () => {
+  const backup = generate(true);
+  delete backup.locations;
+  delete backup.properties;
+  backup.bookings = [{ ...booking(), propertyId: 'missing-property' }];
+  const validation = validateBackupJson(backup);
+  assert.equal(validation.isValid, false);
+  assert.match(validation.error ?? '', /property catalog/i);
+});
+
 test('unknown legacy fields are discarded during validation', () => {
   const backup = generate(true) as unknown as Record<string, unknown>;
   backup.legacyConfiguration = { legacyRate: 18 };

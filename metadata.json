@@ -1,6 +1,6 @@
 {
   "name": "Short-Let Property Management & Finance Dashboard",
-  "description": "High-density property booking calendar combined with a monthly financial ledger and tax estimator.",
+  "description": "Simple property booking calendar with monthly income and expense tracking.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

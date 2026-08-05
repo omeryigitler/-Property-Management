@@ -22,8 +22,14 @@ import {
   normalizeExtraIncomeRecord,
 } from './persistenceRepository';
 import { isRentExpense } from '../utils/expenseUtilities';
+import { validateBookingOverlap } from '../utils/overlapValidation';
 
-const CHANNELS = new Set<Channel>(['airbnb', 'booking_com', 'direct', 'vrbo']);
+const CHANNELS = new Set<Channel>([
+  'airbnb',
+  'booking_com',
+  'direct',
+  'vrbo',
+]);
 const BOOKING_STATUSES = new Set<BookingStatus>([
   'confirmed',
   'provisional',
@@ -53,7 +59,11 @@ function csvCell(value: string | number | null | undefined): string {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-function downloadTextFile(content: string, filename: string, type: string): void {
+function downloadTextFile(
+  content: string,
+  filename: string,
+  type: string
+): void {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -110,7 +120,9 @@ function isActivityRecord(value: unknown): value is ActivityRecord {
     isObject(value) &&
     isNonEmptyString(value.id) &&
     isNonEmptyString(value.timestamp) &&
-    ACTIVITY_ACTIONS.has(String(value.action) as ActivityRecord['action']) &&
+    ACTIVITY_ACTIONS.has(
+      String(value.action) as ActivityRecord['action']
+    ) &&
     isNonEmptyString(value.entity) &&
     isNonEmptyString(value.description)
   );
@@ -138,7 +150,10 @@ export class ExportImportService {
       version: 3,
       exportedAt: new Date().toISOString(),
       containsPii: includePii,
-      locations: locations.map((location) => ({ ...location, properties: [] })),
+      locations: locations.map((location) => ({
+        ...location,
+        properties: [],
+      })),
       properties,
       bookings: safeBookings,
       expenses,
@@ -148,7 +163,10 @@ export class ExportImportService {
     };
   }
 
-  public static downloadJsonBackup(backup: BackupData, filename?: string): void {
+  public static downloadJsonBackup(
+    backup: BackupData,
+    filename?: string
+  ): void {
     downloadTextFile(
       JSON.stringify(backup, null, 2),
       filename ||
@@ -159,7 +177,10 @@ export class ExportImportService {
     );
   }
 
-  public static exportBookingsCsv(bookings: Booking[], includePii = false): void {
+  public static exportBookingsCsv(
+    bookings: Booking[],
+    includePii = false
+  ): void {
     const headers = [
       'Booking ID',
       'Property ID',
@@ -185,7 +206,9 @@ export class ExportImportService {
       euros(calculateBookingRevenue(booking)),
     ]);
     downloadTextFile(
-      [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n'),
+      [headers, ...rows]
+        .map((row) => row.map(csvCell).join(','))
+        .join('\n'),
       `bookings_export_${includePii ? 'full' : 'anonymous'}_${new Date()
         .toISOString()
         .slice(0, 10)}.csv`,
@@ -273,7 +296,11 @@ export function exportFinancialSummaryCsv(
     euros(totalOther),
     euros(totalExpenses),
     euros(totalNet),
-    totalNet > 0 ? 'Profitable' : totalNet < 0 ? 'Loss' : 'Break-even',
+    totalNet > 0
+      ? 'Profitable'
+      : totalNet < 0
+        ? 'Loss'
+        : 'Break-even',
   ]);
 
   downloadTextFile(
@@ -313,18 +340,31 @@ export function validateBackupJson(
   jsonInput: string | unknown
 ): { isValid: boolean; data?: BackupData; error?: string } {
   try {
-    const object = typeof jsonInput === 'string' ? JSON.parse(jsonInput) : jsonInput;
+    const object =
+      typeof jsonInput === 'string' ? JSON.parse(jsonInput) : jsonInput;
     if (!isObject(object)) {
-      return { isValid: false, error: 'Backup file must contain a JSON object.' };
+      return {
+        isValid: false,
+        error: 'Backup file must contain a JSON object.',
+      };
     }
     if (!Array.isArray(object.bookings)) {
-      return { isValid: false, error: 'Backup is missing the bookings array.' };
+      return {
+        isValid: false,
+        error: 'Backup is missing the bookings array.',
+      };
     }
     if (!Array.isArray(object.expenses)) {
-      return { isValid: false, error: 'Backup is missing the expenses array.' };
+      return {
+        isValid: false,
+        error: 'Backup is missing the expenses array.',
+      };
     }
     if (!Array.isArray(object.extraIncomes)) {
-      return { isValid: false, error: 'Backup is missing the extra income array.' };
+      return {
+        isValid: false,
+        error: 'Backup is missing the extra income array.',
+      };
     }
 
     const locations = Array.isArray(object.locations)
@@ -337,13 +377,19 @@ export function validateBackupJson(
       Array.isArray(object.locations) &&
       locations?.length !== object.locations.length
     ) {
-      return { isValid: false, error: 'Backup contains an invalid locations list.' };
+      return {
+        isValid: false,
+        error: 'Backup contains an invalid locations list.',
+      };
     }
     if (
       Array.isArray(object.properties) &&
       properties?.length !== object.properties.length
     ) {
-      return { isValid: false, error: 'Backup contains an invalid properties list.' };
+      return {
+        isValid: false,
+        error: 'Backup contains an invalid properties list.',
+      };
     }
 
     const bookings = object.bookings.map(normalizeBookingRecord);
@@ -375,10 +421,16 @@ export function validateBackupJson(
     const cleanExpenses = expenses as Expense[];
     const cleanIncomes = extraIncomes as ExtraIncome[];
     if (hasDuplicateIds(cleanBookings)) {
-      return { isValid: false, error: 'Backup contains duplicate booking IDs.' };
+      return {
+        isValid: false,
+        error: 'Backup contains duplicate booking IDs.',
+      };
     }
     if (hasDuplicateIds(cleanExpenses)) {
-      return { isValid: false, error: 'Backup contains duplicate expense IDs.' };
+      return {
+        isValid: false,
+        error: 'Backup contains duplicate expense IDs.',
+      };
     }
     if (hasDuplicateIds(cleanIncomes)) {
       return {
@@ -387,14 +439,22 @@ export function validateBackupJson(
       };
     }
     if (locations && hasDuplicateIds(locations)) {
-      return { isValid: false, error: 'Backup contains duplicate location IDs.' };
+      return {
+        isValid: false,
+        error: 'Backup contains duplicate location IDs.',
+      };
     }
     if (properties && hasDuplicateIds(properties)) {
-      return { isValid: false, error: 'Backup contains duplicate property IDs.' };
+      return {
+        isValid: false,
+        error: 'Backup contains duplicate property IDs.',
+      };
     }
 
     if (properties) {
-      const locationIds = new Set((locations ?? LOCATIONS).map((location) => location.id));
+      const locationIds = new Set(
+        (locations ?? LOCATIONS).map((location) => location.id)
+      );
       const invalidProperty = properties.find(
         (property) => !locationIds.has(property.locationId)
       );
@@ -404,22 +464,47 @@ export function validateBackupJson(
           error: `Property ${invalidProperty.name} references a location that is not included in the backup.`,
         };
       }
-      const propertyIds = new Set(properties.map((property) => property.id));
-      if (
-        cleanBookings.some((item) => !propertyIds.has(item.propertyId)) ||
-        cleanExpenses.some((item) => !propertyIds.has(item.propertyId)) ||
-        cleanIncomes.some((item) => !propertyIds.has(item.propertyId))
-      ) {
+    }
+
+    const availableProperties = properties ?? ALL_PROPERTIES;
+    const propertyIds = new Set(
+      availableProperties.map((property) => property.id)
+    );
+    if (
+      cleanBookings.some((item) => !propertyIds.has(item.propertyId)) ||
+      cleanExpenses.some((item) => !propertyIds.has(item.propertyId)) ||
+      cleanIncomes.some((item) => !propertyIds.has(item.propertyId))
+    ) {
+      return {
+        isValid: false,
+        error:
+          'Backup contains records linked to a property that is not included in the property catalog.',
+      };
+    }
+
+    const acceptedBookings: Booking[] = [];
+    for (const booking of cleanBookings) {
+      if (booking.status === 'cancelled') continue;
+      const overlap = validateBookingOverlap(
+        booking.propertyId,
+        booking.checkInDate,
+        booking.checkOutDate,
+        acceptedBookings
+      );
+      if (overlap.hasOverlap && overlap.conflictingBooking) {
         return {
           isValid: false,
-          error:
-            'Backup contains records linked to a property that is not included in the backup.',
+          error: `Backup contains overlapping reservations ${overlap.conflictingBooking.id} and ${booking.id}.`,
         };
       }
+      acceptedBookings.push(booking);
     }
 
     const userPreferences = isObject(object.userPreferences)
-      ? ({ ...DEFAULT_USER_PREFERENCES, ...object.userPreferences } as UserPreferences)
+      ? ({
+          ...DEFAULT_USER_PREFERENCES,
+          ...object.userPreferences,
+        } as UserPreferences)
       : { ...DEFAULT_USER_PREFERENCES };
     const activityHistory = Array.isArray(object.activityHistory)
       ? object.activityHistory.filter(isActivityRecord)
@@ -434,7 +519,10 @@ export function validateBackupJson(
             ? object.exportedAt
             : new Date().toISOString(),
         containsPii: object.containsPii === true,
-        locations: locations?.map((location) => ({ ...location, properties: [] })),
+        locations: locations?.map((location) => ({
+          ...location,
+          properties: [],
+        })),
         properties,
         bookings: cleanBookings,
         expenses: cleanExpenses,
@@ -444,7 +532,10 @@ export function validateBackupJson(
       },
     };
   } catch {
-    return { isValid: false, error: 'Failed to parse JSON file format.' };
+    return {
+      isValid: false,
+      error: 'Failed to parse JSON file format.',
+    };
   }
 }
 

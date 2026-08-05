@@ -76,6 +76,13 @@
     display: none !important;
   }
 
+  /* Empty mobile calendar cells stay silent, matching desktop. */
+  div[style*="--calendar-booking-row-height"]
+    > button[style*="grid-column: 2"]
+    > span {
+    display: none !important;
+  }
+
   /* Touch devices must never retain the calendar hover card above a modal. */
   .booking-span-tooltip {
     display: none !important;

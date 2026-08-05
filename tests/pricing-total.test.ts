@@ -22,7 +22,7 @@ function simpleBooking(): Booking {
   };
 }
 
-test('total is derived from nightly rate without a separate total field', () => {
+test('nightly-rate bookings continue to derive the total', () => {
   const booking = simpleBooking();
   assert.equal(calculateBookingRevenue(booking), 9_999);
   assert.deepEqual(
@@ -31,10 +31,24 @@ test('total is derived from nightly rate without a separate total field', () => 
     ),
     [3_333, 3_333, 3_333]
   );
-  assert.equal('accommodationTotalCents' in booking, false);
 });
 
-test('legacy exact totals are migrated into the nightly rate and discarded', () => {
+test('an entered exact total is preserved and allocated without losing cents', () => {
+  const booking: Booking = {
+    ...simpleBooking(),
+    nightlyRateCents: 3_333,
+    totalAmountCents: 10_000,
+  };
+  assert.equal(calculateBookingRevenue(booking), 10_000);
+  assert.deepEqual(
+    getBookingMonthlyAllocatedNights(booking).map(
+      (night) => night.revenueCents
+    ),
+    [3_334, 3_333, 3_333]
+  );
+});
+
+test('legacy exact totals migrate into the simplified exact-total field', () => {
   const migrated = normalizeBookingRecord({
     ...simpleBooking(),
     accommodationTotalCents: 10_001,
@@ -45,6 +59,14 @@ test('legacy exact totals are migrated into the nightly rate and discarded', () 
   });
   assert.ok(migrated);
   assert.equal(migrated.nightlyRateCents, 3_334);
+  assert.equal(migrated.totalAmountCents, 10_001);
+  assert.equal(calculateBookingRevenue(migrated), 10_001);
+  assert.deepEqual(
+    getBookingMonthlyAllocatedNights(migrated).map(
+      (night) => night.revenueCents
+    ),
+    [3_334, 3_334, 3_333]
+  );
   assert.equal('accommodationTotalCents' in migrated, false);
   assert.equal('legacyGuestCount' in migrated, false);
   assert.equal('legacyPercentage' in migrated, false);

@@ -32,7 +32,9 @@ export function BookingModal() {
   const addBooking = useDashboardStore((state) => state.addBooking);
   const updateBooking = useDashboardStore((state) => state.updateBooking);
   const deleteBooking = useDashboardStore((state) => state.deleteBooking);
-  const openConfirmation = useDashboardStore((state) => state.openConfirmation);
+  const openConfirmation = useDashboardStore(
+    (state) => state.openConfirmation
+  );
 
   const isEditing = activeModal === 'booking_edit';
   const isAdding = activeModal === 'booking_add';
@@ -59,8 +61,12 @@ export function BookingModal() {
     if (isEditing && editingBooking) {
       const nights = Math.max(
         0,
-        calculateNights(editingBooking.checkInDate, editingBooking.checkOutDate)
+        calculateNights(
+          editingBooking.checkInDate,
+          editingBooking.checkOutDate
+        )
       );
+      const exactTotalCents = editingBooking.totalAmountCents;
       setPropertyId(editingBooking.propertyId);
       setGuestName(editingBooking.guestName);
       setChannel(editingBooking.channel);
@@ -68,10 +74,18 @@ export function BookingModal() {
       setCheckOutDate(editingBooking.checkOutDate);
       setNightlyRate(euroInputFromCents(editingBooking.nightlyRateCents));
       setTotalAmount(
-        nights > 0 ? euroInputFromCents(nights * editingBooking.nightlyRateCents) : ''
+        nights > 0
+          ? euroInputFromCents(
+              exactTotalCents ?? nights * editingBooking.nightlyRateCents
+            )
+          : ''
       );
-      setPricingInput('nightly');
-      setStatus(editingBooking.status === 'provisional' ? 'provisional' : 'confirmed');
+      setPricingInput(exactTotalCents == null ? 'nightly' : 'total');
+      setStatus(
+        editingBooking.status === 'provisional'
+          ? 'provisional'
+          : 'confirmed'
+      );
       setFormError(null);
       return;
     }
@@ -79,16 +93,31 @@ export function BookingModal() {
     if (!isAdding) return;
 
     if (copiedBooking) {
+      const copiedNights = Math.max(
+        0,
+        calculateNights(copiedBooking.checkInDate, copiedBooking.checkOutDate)
+      );
       setPropertyId(copiedBooking.propertyId);
       setGuestName(`${copiedBooking.guestName} (Copy)`);
       setChannel(copiedBooking.channel);
       setCheckInDate('');
       setCheckOutDate('');
       setNightlyRate(euroInputFromCents(copiedBooking.nightlyRateCents));
-      setTotalAmount('');
-      setPricingInput('nightly');
+      setTotalAmount(
+        copiedNights > 0
+          ? euroInputFromCents(
+              copiedBooking.totalAmountCents ??
+                copiedNights * copiedBooking.nightlyRateCents
+            )
+          : ''
+      );
+      setPricingInput(
+        copiedBooking.totalAmountCents == null ? 'nightly' : 'total'
+      );
       setStatus('confirmed');
-      setFormError('Select new check-in and check-out dates for the copied reservation.');
+      setFormError(
+        'Select new check-in and check-out dates for the copied reservation.'
+      );
       return;
     }
 
@@ -105,8 +134,13 @@ export function BookingModal() {
       ).padStart(2, '0')}-${String(checkout.getDate()).padStart(2, '0')}`;
     }
 
-    const defaultNights = Math.max(0, calculateNights(prefilledDate, nextCheckOutDate));
-    setPropertyId(modalParams.prefilledPropertyId || ALL_PROPERTIES[0]?.id || '');
+    const defaultNights = Math.max(
+      0,
+      calculateNights(prefilledDate, nextCheckOutDate)
+    );
+    setPropertyId(
+      modalParams.prefilledPropertyId || ALL_PROPERTIES[0]?.id || ''
+    );
     setGuestName('');
     setChannel('airbnb');
     setCheckInDate(prefilledDate);
@@ -137,11 +171,16 @@ export function BookingModal() {
     [bookings, editingBooking?.id, propertyId]
   );
 
-  const nightsCount = Math.max(0, calculateNights(checkInDate, checkOutDate));
+  const nightsCount = Math.max(
+    0,
+    calculateNights(checkInDate, checkOutDate)
+  );
 
   useEffect(() => {
     if (nightsCount <= 0) {
-      if (pricingInput === 'nightly' && totalAmount !== '') setTotalAmount('');
+      if (pricingInput === 'nightly' && totalAmount !== '') {
+        setTotalAmount('');
+      }
       return;
     }
 
@@ -150,7 +189,9 @@ export function BookingModal() {
       const nextNightlyRate = euroInputFromCents(
         Math.round(Math.max(0, eurosToCents(totalAmount)) / nightsCount)
       );
-      if (nextNightlyRate !== nightlyRate) setNightlyRate(nextNightlyRate);
+      if (nextNightlyRate !== nightlyRate) {
+        setNightlyRate(nextNightlyRate);
+      }
       return;
     }
 
@@ -181,7 +222,9 @@ export function BookingModal() {
     setNightlyRate(value);
     setTotalAmount(
       nightsCount > 0 && value.trim()
-        ? euroInputFromCents(nightsCount * Math.max(0, eurosToCents(value)))
+        ? euroInputFromCents(
+            nightsCount * Math.max(0, eurosToCents(value))
+          )
         : ''
     );
   };
@@ -212,7 +255,12 @@ export function BookingModal() {
       setFormError('Guest name is required.');
       return;
     }
-    if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate || nightsCount <= 0) {
+    if (
+      !checkInDate ||
+      !checkOutDate ||
+      checkOutDate <= checkInDate ||
+      nightsCount <= 0
+    ) {
       setFormError('Check-out date must be after check-in date.');
       return;
     }
@@ -221,10 +269,14 @@ export function BookingModal() {
       return;
     }
 
-    const nightlyRateCents =
+    const totalAmountCents =
       pricingInput === 'total' && totalAmount.trim()
-        ? Math.round(Math.max(0, eurosToCents(totalAmount)) / nightsCount)
-        : Math.max(0, eurosToCents(nightlyRate));
+        ? Math.max(0, eurosToCents(totalAmount))
+        : undefined;
+    const nightlyRateCents =
+      totalAmountCents == null
+        ? Math.max(0, eurosToCents(nightlyRate))
+        : Math.round(totalAmountCents / nightsCount);
 
     const payload = {
       propertyId,
@@ -233,6 +285,7 @@ export function BookingModal() {
       checkInDate,
       checkOutDate,
       nightlyRateCents,
+      totalAmountCents,
       status,
     };
     const result =
@@ -274,7 +327,11 @@ export function BookingModal() {
             </div>
             <div className="min-w-0">
               <h3 className="truncate font-display text-lg font-extrabold tracking-[-0.025em] text-[#222222] sm:text-xl">
-                {isEditing ? 'Edit reservation' : copiedBooking ? 'Copy reservation' : 'New reservation'}
+                {isEditing
+                  ? 'Edit reservation'
+                  : copiedBooking
+                    ? 'Copy reservation'
+                    : 'New reservation'}
               </h3>
               <p className="truncate text-xs font-medium text-[#717171]">
                 Add the essential reservation details.
@@ -291,7 +348,10 @@ export function BookingModal() {
           </button>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-5 overflow-y-auto p-4 no-scrollbar sm:p-6">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 overflow-y-auto p-4 no-scrollbar sm:p-6"
+        >
           {formError && (
             <div className="flex items-center gap-2.5 rounded-2xl border border-[#f5c7c4] bg-[#fff1f0] p-3.5 text-sm font-semibold text-[#a93439]">
               <AlertCircle className="h-5 w-5 flex-shrink-0 text-[#d9474d]" />
@@ -307,7 +367,9 @@ export function BookingModal() {
               onChange={(value) => setPropertyId(String(value))}
             />
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-[#4d4744]">Booking Channel</label>
+              <label className="text-sm font-semibold text-[#4d4744]">
+                Booking Channel
+              </label>
               <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-[#e7e2df] bg-[#f8f6f5] p-1.5">
                 {Object.values(CHANNEL_CONFIG).map((item) => (
                   <button
@@ -320,7 +382,9 @@ export function BookingModal() {
                         : 'border-transparent text-[#625d5a] hover:bg-white hover:text-[#222222]'
                     }`}
                   >
-                    <span className={`h-2 w-2 rounded-full ${item.dotColor}`} />
+                    <span
+                      className={`h-2 w-2 rounded-full ${item.dotColor}`}
+                    />
                     {item.name}
                   </button>
                 ))}
@@ -330,7 +394,9 @@ export function BookingModal() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-[#4d4744]">Guest Name *</span>
+              <span className="text-sm font-semibold text-[#4d4744]">
+                Guest Name *
+              </span>
               <span className="relative">
                 <User className="absolute left-3.5 top-3 h-4 w-4 text-[#8f8783]" />
                 <input
@@ -376,7 +442,9 @@ export function BookingModal() {
                   min="0"
                   step="0.01"
                   value={nightlyRate}
-                  onChange={(event) => handleNightlyRateChange(event.target.value)}
+                  onChange={(event) =>
+                    handleNightlyRateChange(event.target.value)
+                  }
                   className={`${amountInputClass} ${
                     pricingInput === 'nightly'
                       ? 'border border-[#ffaaa6] shadow-[0_0_0_3px_rgba(255,90,95,0.06)]'
@@ -396,7 +464,9 @@ export function BookingModal() {
                   min="0"
                   step="0.01"
                   value={totalAmount}
-                  onChange={(event) => handleTotalAmountChange(event.target.value)}
+                  onChange={(event) =>
+                    handleTotalAmountChange(event.target.value)
+                  }
                   placeholder="Enter total"
                   className={`${amountInputClass} ${
                     pricingInput === 'total'
@@ -407,7 +477,8 @@ export function BookingModal() {
               </label>
             </div>
             <p className="mt-3 text-xs font-medium leading-5 text-[#756e6a]">
-              Enter either amount. The other field is recalculated automatically from the selected number of nights.
+              Enter either amount. The other field is recalculated automatically
+              from the selected number of nights.
             </p>
           </div>
 
@@ -425,7 +496,9 @@ export function BookingModal() {
                 <button
                   type="button"
                   onClick={() =>
-                    openModal('booking_add', { copyFromBookingId: editingBooking.id })
+                    openModal('booking_add', {
+                      copyFromBookingId: editingBooking.id,
+                    })
                   }
                   className="flex h-10 items-center gap-1.5 rounded-xl border border-[#d8d1cd] bg-white px-3 text-xs font-bold text-[#3f3b39] transition-colors hover:bg-[#f8f6f5]"
                 >

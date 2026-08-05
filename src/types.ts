@@ -15,6 +15,8 @@ export interface Booking {
   checkInDate: string;
   checkOutDate: string;
   nightlyRateCents: number;
+  /** Exact reservation total when the user enters Total instead of Nightly Rate. */
+  totalAmountCents?: number;
   status: BookingStatus;
   externalUid?: string;
   createdAt: string;

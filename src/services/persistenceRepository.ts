@@ -83,10 +83,15 @@ export function normalizeBookingRecord(value: unknown): Booking | null {
   const nights = calculateNights(checkInDate, checkOutDate);
   if (nights <= 0) return null;
 
+  const storedExactTotal = nonNegativeInteger(value.totalAmountCents, -1);
   const legacyExactTotal = nonNegativeInteger(value.accommodationTotalCents, -1);
+  const exactTotalCents =
+    storedExactTotal >= 0 ? storedExactTotal : legacyExactTotal;
   const storedNightlyRate = nonNegativeInteger(value.nightlyRateCents, 0);
   const nightlyRateCents =
-    legacyExactTotal >= 0 ? Math.round(legacyExactTotal / nights) : storedNightlyRate;
+    exactTotalCents >= 0
+      ? Math.round(exactTotalCents / nights)
+      : storedNightlyRate;
   const now = new Date().toISOString();
 
   return {
@@ -99,6 +104,8 @@ export function normalizeBookingRecord(value: unknown): Booking | null {
     checkInDate,
     checkOutDate,
     nightlyRateCents: Math.max(0, nightlyRateCents),
+    totalAmountCents:
+      exactTotalCents >= 0 ? Math.max(0, exactTotalCents) : undefined,
     status,
     externalUid: stringValue(value.externalUid).trim() || undefined,
     createdAt: stringValue(value.createdAt) || now,
@@ -356,14 +363,7 @@ export class PersistenceRepository {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const normalized = normalizePersistedState(JSON.parse(raw), year, month);
-        if (
-          normalized.bookings.length > 0 ||
-          normalized.expenses.length > 0 ||
-          normalized.extraIncomes.length > 0
-        ) {
-          return normalized;
-        }
+        return normalizePersistedState(JSON.parse(raw), year, month);
       }
     } catch (error) {
       console.warn('Failed to load persisted dashboard state:', error);
