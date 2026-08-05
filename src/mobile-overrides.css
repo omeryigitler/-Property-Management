@@ -1,6 +1,6 @@
-/* Mobile-only modal corrections. Desktop layout is intentionally untouched. */
+/* Mobile-only modal and navigation corrections. Desktop layout is intentionally untouched. */
 @media (max-width: 639px) {
-  /* Booking modal overlay */
+  /* Legacy dark booking modal overlay support. */
   div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"] {
     align-items: stretch !important;
     justify-content: stretch !important;
@@ -9,7 +9,6 @@
     backdrop-filter: none !important;
   }
 
-  /* Booking modal card */
   div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"]
     > div[class*="max-w-2xl"] {
     width: 100% !important;
@@ -21,7 +20,6 @@
     box-shadow: none !important;
   }
 
-  /* Keep the modal header visible while the form scrolls. */
   div[class*="fixed inset-0 z-[100]"][class*="bg-slate-950/80"]
     > div[class*="max-w-2xl"]
     > div:first-child {
@@ -47,6 +45,35 @@
     padding: 16px !important;
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
     overscroll-behavior: contain;
+  }
+
+  /* Booking modal primary actions: two equal, centered buttons. */
+  div:has(> header button[aria-label="Close reservation form"])
+    > form
+    > footer
+    > div:last-child {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: min(100%, 340px) !important;
+    margin-inline: auto !important;
+  }
+
+  div:has(> header button[aria-label="Close reservation form"])
+    > form
+    > footer
+    > div:last-child
+    > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding-inline: 12px !important;
+  }
+
+  /* The Jan-Dec quick month strip is unnecessary on mobile. */
+  div[class~="gap-2.5"]:has(button[aria-label="Previous Month"])
+    > div:last-child {
+    display: none !important;
   }
 
   /* Touch devices must never retain the calendar hover card above a modal. */
