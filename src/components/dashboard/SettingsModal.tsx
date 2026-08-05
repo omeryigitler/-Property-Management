@@ -5,21 +5,46 @@ import {
   Home,
   Plus,
   SlidersHorizontal,
+  Trash2,
   WalletCards,
   X,
 } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
-import { getActiveProperties, usePropertyStore } from '../../store/usePropertyStore';
+import {
+  getActiveProperties,
+  usePropertyStore,
+} from '../../store/usePropertyStore';
+import { PropertyConfig } from '../../types';
 import { CustomSelect } from '../common/CustomSelect';
 import { MonthlyFinanceSettings } from './settings/MonthlyFinanceSettings';
 
 type SettingsSection = 'overview' | 'properties' | 'finance' | 'data';
 
-const sections: Array<{ id: SettingsSection; label: string; icon: React.ReactNode }> = [
-  { id: 'overview', label: 'Overview', icon: <SlidersHorizontal className="h-4 w-4" /> },
-  { id: 'properties', label: 'Properties', icon: <Building2 className="h-4 w-4" /> },
-  { id: 'finance', label: 'Monthly Finance', icon: <WalletCards className="h-4 w-4" /> },
-  { id: 'data', label: 'Data', icon: <Database className="h-4 w-4" /> },
+const sections: Array<{
+  id: SettingsSection;
+  label: string;
+  icon: React.ReactNode;
+}> = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    icon: <SlidersHorizontal className="h-4 w-4" />,
+  },
+  {
+    id: 'properties',
+    label: 'Properties',
+    icon: <Building2 className="h-4 w-4" />,
+  },
+  {
+    id: 'finance',
+    label: 'Monthly Finance',
+    icon: <WalletCards className="h-4 w-4" />,
+  },
+  {
+    id: 'data',
+    label: 'Data',
+    icon: <Database className="h-4 w-4" />,
+  },
 ];
 
 export function SettingsModal() {
@@ -27,41 +52,236 @@ export function SettingsModal() {
   const modalParams = useDashboardStore((state) => state.modalParams);
   const closeModal = useDashboardStore((state) => state.closeModal);
   const openModal = useDashboardStore((state) => state.openModal);
-  const openConfirmation = useDashboardStore((state) => state.openConfirmation);
+  const openConfirmation = useDashboardStore(
+    (state) => state.openConfirmation
+  );
   const clearAllData = useDashboardStore((state) => state.clearAllData);
+  const bookings = useDashboardStore((state) => state.bookings);
+  const expenses = useDashboardStore((state) => state.expenses);
+  const extraIncomes = useDashboardStore((state) => state.extraIncomes);
+  const addToast = useDashboardStore((state) => state.addToast);
+
   const locations = usePropertyStore((state) => state.locations);
   const properties = usePropertyStore((state) => state.properties);
   const addLocation = usePropertyStore((state) => state.addLocation);
   const addProperty = usePropertyStore((state) => state.addProperty);
   const updateProperty = usePropertyStore((state) => state.updateProperty);
+  const replaceCatalog = usePropertyStore((state) => state.replaceCatalog);
+
   const [section, setSection] = useState<SettingsSection>('overview');
   const [newLocationName, setNewLocationName] = useState('');
   const [newPropertyName, setNewPropertyName] = useState('');
-  const [newPropertyLocation, setNewPropertyLocation] = useState(locations[0]?.id ?? '');
+  const [newPropertyLocation, setNewPropertyLocation] = useState(
+    locations[0]?.id ?? ''
+  );
 
   useEffect(() => {
     if (activeModal !== 'settings') return;
     const requested = modalParams.section as SettingsSection | undefined;
-    setSection(sections.some((item) => item.id === requested) ? requested! : 'overview');
+    setSection(
+      sections.some((item) => item.id === requested)
+        ? requested!
+        : 'overview'
+    );
   }, [activeModal, modalParams]);
 
-  const activeProperties = useMemo(() => getActiveProperties(properties), [properties]);
+  useEffect(() => {
+    if (
+      !locations.some((location) => location.id === newPropertyLocation)
+    ) {
+      setNewPropertyLocation(locations[0]?.id ?? '');
+    }
+  }, [locations, newPropertyLocation]);
+
+  const activeProperties = useMemo(
+    () => getActiveProperties(properties),
+    [properties]
+  );
+
   if (activeModal !== 'settings') return null;
 
   const locationOptions = locations.map((location) => ({
     value: location.id,
     label: location.name,
   }));
+
   const addNewLocation = () => {
-    const location = addLocation(newLocationName);
-    if (location) {
-      setNewLocationName('');
-      setNewPropertyLocation(location.id);
+    const cleanName = newLocationName.trim();
+    if (!cleanName) {
+      addToast({
+        type: 'warning',
+        title: 'Location name required',
+        message: 'Enter a location name before adding it.',
+      });
+      return;
     }
+
+    const duplicate = locations.some(
+      (location) =>
+        location.name.trim().toLowerCase() === cleanName.toLowerCase()
+    );
+    if (duplicate) {
+      addToast({
+        type: 'warning',
+        title: 'Location already exists',
+        message: `${cleanName} is already in the location list.`,
+      });
+      return;
+    }
+
+    const location = addLocation(cleanName);
+    if (!location) {
+      addToast({
+        type: 'error',
+        title: 'Location not added',
+        message: 'The location could not be saved.',
+      });
+      return;
+    }
+
+    setNewLocationName('');
+    setNewPropertyLocation(location.id);
+    addToast({
+      type: 'success',
+      title: 'Location added',
+      message: `${location.name} is ready for new properties.`,
+    });
   };
+
   const addNewProperty = () => {
-    const property = addProperty(newPropertyName, newPropertyLocation);
-    if (property) setNewPropertyName('');
+    const cleanName = newPropertyName.trim();
+    if (!cleanName) {
+      addToast({
+        type: 'warning',
+        title: 'Property name required',
+        message: 'Enter a property name before adding it.',
+      });
+      return;
+    }
+    if (!newPropertyLocation) {
+      addToast({
+        type: 'warning',
+        title: 'Location required',
+        message: 'Select a location for the new property.',
+      });
+      return;
+    }
+
+    const duplicate = properties.some(
+      (property) =>
+        property.locationId === newPropertyLocation &&
+        property.name.trim().toLowerCase() === cleanName.toLowerCase()
+    );
+    if (duplicate) {
+      addToast({
+        type: 'warning',
+        title: 'Property already exists',
+        message: `${cleanName} already exists in the selected location.`,
+      });
+      return;
+    }
+
+    const property = addProperty(cleanName, newPropertyLocation);
+    if (!property) {
+      addToast({
+        type: 'error',
+        title: 'Property not added',
+        message: 'The property could not be saved.',
+      });
+      return;
+    }
+
+    setNewPropertyName('');
+    addToast({
+      type: 'success',
+      title: 'Property added',
+      message: `${property.name} was added to the calendar.`,
+    });
+  };
+
+  const requestPropertyDeletion = (property: PropertyConfig) => {
+    if (properties.length <= 1) {
+      addToast({
+        type: 'warning',
+        title: 'One property must remain',
+        message: 'Add another property before deleting the final property.',
+      });
+      return;
+    }
+
+    const linkedBookings = bookings.filter(
+      (booking) => booking.propertyId === property.id
+    ).length;
+    const linkedExpenses = expenses.filter(
+      (expense) => expense.propertyId === property.id
+    ).length;
+    const linkedIncomes = extraIncomes.filter(
+      (income) => income.propertyId === property.id
+    ).length;
+    const linkedRecords =
+      linkedBookings + linkedExpenses + linkedIncomes;
+
+    const linkedSummary = [
+      linkedBookings > 0
+        ? `${linkedBookings} reservation${linkedBookings === 1 ? '' : 's'}`
+        : null,
+      linkedExpenses > 0
+        ? `${linkedExpenses} expense${linkedExpenses === 1 ? '' : 's'}`
+        : null,
+      linkedIncomes > 0
+        ? `${linkedIncomes} additional income record${
+            linkedIncomes === 1 ? '' : 's'
+          }`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    openConfirmation({
+      title: `Delete ${property.name}?`,
+      message:
+        linkedRecords > 0
+          ? `This permanently removes the property and its linked data: ${linkedSummary}. This action cannot be undone.`
+          : 'This permanently removes the property from the catalog and calendar. This action cannot be undone.',
+      confirmText: 'Delete Property',
+      variant: 'danger',
+      onConfirm: () => {
+        const dashboard = useDashboardStore.getState();
+        useDashboardStore.setState({
+          bookings: dashboard.bookings.filter(
+            (booking) => booking.propertyId !== property.id
+          ),
+          expenses: dashboard.expenses.filter(
+            (expense) => expense.propertyId !== property.id
+          ),
+          extraIncomes: dashboard.extraIncomes.filter(
+            (income) => income.propertyId !== property.id
+          ),
+        });
+
+        const catalog = usePropertyStore.getState();
+        const remainingProperties = catalog.properties.filter(
+          (item) => item.id !== property.id
+        );
+        usePropertyStore
+          .getState()
+          .replaceCatalog(catalog.locations, remainingProperties);
+
+        const nextDashboard = useDashboardStore.getState();
+        nextDashboard.addActivity(
+          'property_saved',
+          property.name,
+          linkedRecords > 0
+            ? `Deleted property ${property.name} with ${linkedRecords} linked record(s)`
+            : `Deleted property ${property.name}`
+        );
+        nextDashboard.addToast({
+          type: 'success',
+          title: 'Property deleted',
+          message: `${property.name} and its linked data were removed.`,
+        });
+      },
+    });
   };
 
   return (
@@ -80,6 +300,7 @@ export function SettingsModal() {
             type="button"
             onClick={closeModal}
             className="rounded-xl p-2 text-[#717171] transition-colors hover:bg-[#f4efed] hover:text-[#222222]"
+            aria-label="Close settings"
           >
             <X className="h-5 w-5" />
           </button>
@@ -118,16 +339,28 @@ export function SettingsModal() {
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   {[
                     ['Locations', locations.length, 'text-[#222222]'],
-                    ['Active Properties', activeProperties.length, 'text-[#222222]'],
+                    [
+                      'Active Properties',
+                      activeProperties.length,
+                      'text-[#222222]',
+                    ],
                     ['Data Model', 'Simplified', 'text-[#237a59]'],
-                    ['Financial Model', 'Income − Expenses', 'text-[#c83f45]'],
+                    [
+                      'Financial Model',
+                      'Income − Expenses',
+                      'text-[#c83f45]',
+                    ],
                   ].map(([label, value, valueClass]) => (
                     <div
                       key={String(label)}
                       className="rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_8px_26px_rgba(55,42,36,0.05)]"
                     >
-                      <span className="text-xs font-semibold text-[#8a817d]">{label}</span>
-                      <strong className={`mt-2 block text-lg font-extrabold ${valueClass}`}>
+                      <span className="text-xs font-semibold text-[#8a817d]">
+                        {label}
+                      </span>
+                      <strong
+                        className={`mt-2 block text-lg font-extrabold ${valueClass}`}
+                      >
                         {value}
                       </strong>
                     </div>
@@ -147,32 +380,52 @@ export function SettingsModal() {
                   </p>
                 </div>
 
-                <div className="grid gap-4 rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_8px_26px_rgba(55,42,36,0.05)] lg:grid-cols-2">
+                <div className="grid gap-5 rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_8px_26px_rgba(55,42,36,0.05)] lg:grid-cols-2">
                   <div className="space-y-2">
-                    <span className="text-sm font-semibold text-[#4d4744]">New Location</span>
-                    <div className="flex gap-2">
+                    <span className="text-sm font-semibold text-[#4d4744]">
+                      New Location
+                    </span>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                       <input
                         value={newLocationName}
-                        onChange={(event) => setNewLocationName(event.target.value)}
+                        onChange={(event) =>
+                          setNewLocationName(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            addNewLocation();
+                          }
+                        }}
                         placeholder="Location name"
-                        className="h-11 min-w-0 flex-1 rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
+                        className="h-11 min-w-0 rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
                       />
                       <button
                         type="button"
                         onClick={addNewLocation}
-                        className="flex h-11 items-center gap-1 rounded-xl border border-[#ffd1ce] bg-[#fff0ef] px-3.5 text-xs font-bold text-[#c83f45] transition-colors hover:bg-[#ffe8e6]"
+                        className="flex h-11 w-full items-center justify-center gap-1 rounded-xl border border-[#ffd1ce] bg-[#fff0ef] px-4 text-xs font-bold text-[#c83f45] transition-colors hover:bg-[#ffe8e6] sm:w-auto"
                       >
-                        <Plus className="h-3.5 w-3.5" /> Add
+                        <Plus className="h-3.5 w-3.5" /> Add Location
                       </button>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <span className="text-sm font-semibold text-[#4d4744]">New Property</span>
+                    <span className="text-sm font-semibold text-[#4d4744]">
+                      New Property
+                    </span>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
                       <input
                         value={newPropertyName}
-                        onChange={(event) => setNewPropertyName(event.target.value)}
+                        onChange={(event) =>
+                          setNewPropertyName(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            addNewProperty();
+                          }
+                        }}
                         placeholder="Property name"
                         className="h-11 min-w-0 rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
                       />
@@ -184,9 +437,9 @@ export function SettingsModal() {
                       <button
                         type="button"
                         onClick={addNewProperty}
-                        className="flex h-11 items-center justify-center gap-1 rounded-xl bg-[#ff5a5f] px-3.5 text-xs font-bold text-white shadow-[0_8px_18px_rgba(255,90,95,0.20)] transition-colors hover:bg-[#e94f54]"
+                        className="flex h-11 w-full items-center justify-center gap-1 rounded-xl bg-[#ff5a5f] px-4 text-xs font-bold text-white shadow-[0_8px_18px_rgba(255,90,95,0.20)] transition-colors hover:bg-[#e94f54] sm:w-auto"
                       >
-                        <Plus className="h-3.5 w-3.5" /> Add
+                        <Plus className="h-3.5 w-3.5" /> Add Property
                       </button>
                     </div>
                   </div>
@@ -196,10 +449,12 @@ export function SettingsModal() {
                   {properties.map((property) => (
                     <div
                       key={property.id}
-                      className="grid grid-cols-1 gap-3 rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_6px_20px_rgba(55,42,36,0.04)] sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-center"
+                      className="grid grid-cols-1 gap-3 rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_6px_20px_rgba(55,42,36,0.04)] md:grid-cols-[minmax(0,1fr)_220px_220px] md:items-end"
                     >
                       <label className="space-y-1.5">
-                        <span className="text-xs font-semibold text-[#8a817d]">Property</span>
+                        <span className="text-xs font-semibold text-[#8a817d]">
+                          Property
+                        </span>
                         <input
                           value={property.name}
                           onChange={(event) =>
@@ -212,6 +467,7 @@ export function SettingsModal() {
                           className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm font-semibold text-[#222222] outline-none transition-all focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
                         />
                       </label>
+
                       <CustomSelect
                         label="Location"
                         value={property.locationId}
@@ -224,20 +480,33 @@ export function SettingsModal() {
                           })
                         }
                       />
-                      <label className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#ded8d4] bg-[#fffdfc] px-3 text-xs font-bold text-[#4f4f4f]">
-                        <input
-                          type="checkbox"
-                          checked={property.active}
-                          onChange={(event) =>
-                            updateProperty(property.id, {
-                              name: property.name,
-                              locationId: property.locationId,
-                              active: event.target.checked,
-                            })
-                          }
-                        />
-                        Active
-                      </label>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#ded8d4] bg-[#fffdfc] px-3 text-xs font-bold text-[#4f4f4f]">
+                          <input
+                            type="checkbox"
+                            checked={property.active}
+                            onChange={(event) =>
+                              updateProperty(property.id, {
+                                name: property.name,
+                                locationId: property.locationId,
+                                active: event.target.checked,
+                              })
+                            }
+                          />
+                          Active
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() => requestPropertyDeletion(property)}
+                          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#f1c9c6] bg-[#fff5f4] px-3 text-xs font-bold text-[#b13a40] transition-colors hover:bg-[#ffebe9]"
+                          aria-label={`Delete ${property.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -268,8 +537,12 @@ export function SettingsModal() {
                 >
                   <Database className="h-5 w-5 text-[#d9474d]" />
                   <span>
-                    <strong className="block text-sm font-bold text-[#222222]">Import & Export</strong>
-                    <small className="text-[#717171]">CSV reports and JSON backups</small>
+                    <strong className="block text-sm font-bold text-[#222222]">
+                      Import & Export
+                    </strong>
+                    <small className="text-[#717171]">
+                      CSV reports and JSON backups
+                    </small>
                   </span>
                 </button>
                 <button
@@ -284,8 +557,12 @@ export function SettingsModal() {
                 >
                   <Home className="h-5 w-5 text-[#717171]" />
                   <span>
-                    <strong className="block text-sm font-bold text-[#222222]">Activity History</strong>
-                    <small className="text-[#717171]">Review saved changes</small>
+                    <strong className="block text-sm font-bold text-[#222222]">
+                      Activity History
+                    </strong>
+                    <small className="text-[#717171]">
+                      Review saved changes
+                    </small>
                   </span>
                 </button>
                 <button
