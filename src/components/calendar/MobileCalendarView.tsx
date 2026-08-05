@@ -4,6 +4,8 @@ import {
   Building2,
   CalendarDays,
   CalendarPlus,
+  CircleDot,
+  LogOut,
   WalletCards,
 } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
@@ -11,7 +13,7 @@ import {
   getActiveProperties,
   usePropertyStore,
 } from '../../store/usePropertyStore';
-import { CHANNEL_CONFIG, LOCATIONS } from '../../config/locations';
+import { LOCATIONS } from '../../config/locations';
 import { Booking } from '../../types';
 import { getDaysForMonth } from '../../utils/dateUtilities';
 import {
@@ -23,24 +25,42 @@ import { formatCents } from '../../utils/currency';
 import { getGuestDisplayName } from '../../utils/guestNames';
 import { CustomSelect } from '../common/CustomSelect';
 
+const MOBILE_DAY_ROW_HEIGHT = 58;
 const REPORT_PROPERTY_SESSION_KEY = 'shortlet-report-property-id';
 type MobileSection = 'schedule' | 'finance';
 
+const channelMeta = {
+  airbnb: {
+    label: 'Airbnb',
+    badge: 'border-[#f0aaa6] bg-white/90 text-[#a93439]',
+    block: 'border-[#ffb9b5] bg-[#fff0ef] text-[#5c292c]',
+    rail: 'border-[#e5484e] bg-[#ff5a5f]',
+  },
+  booking_com: {
+    label: 'Booking.com',
+    badge: 'border-[#b9d2eb] bg-white/90 text-[#1f5f9f]',
+    block: 'border-[#bdd4ed] bg-[#eef5ff] text-[#254d77]',
+    rail: 'border-[#2e68b8] bg-[#3478d4]',
+  },
+  direct: {
+    label: 'Direct',
+    badge: 'border-[#add9c6] bg-white/90 text-[#1f6b4e]',
+    block: 'border-[#b7dfce] bg-[#edf8f3] text-[#245b47]',
+    rail: 'border-[#14875e] bg-[#18a875]',
+  },
+  vrbo: {
+    label: 'VRBO',
+    badge: 'border-[#ceb8e1] bg-white/90 text-[#65468b]',
+    block: 'border-[#d5c1e7] bg-[#f5effc] text-[#5d4475]',
+    rail: 'border-[#7047ad] bg-[#8b5bd1]',
+  },
+} as const;
+
 interface MobileBookingSpan {
+  key: string;
   booking: Booking;
   startIndex: number;
-  rowSpan: number;
-  visibleNights: number;
-  totalNights: number;
-  totalCents: number;
-}
-
-function formatMobileDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  });
+  visibleDates: string[];
 }
 
 export function MobileCalendarView() {
@@ -49,6 +69,9 @@ export function MobileCalendarView() {
   const bookings = useDashboardStore((state) => state.bookings);
   const expenses = useDashboardStore((state) => state.expenses);
   const extraIncomes = useDashboardStore((state) => state.extraIncomes);
+  const showProvisionalBlock = useDashboardStore(
+    (state) => state.userPreferences.showProvisionalBlock
+  );
   const openModal = useDashboardStore((state) => state.openModal);
   const setMainViewMode = useDashboardStore((state) => state.setMainViewMode);
   const activeProperties = getActiveProperties(
@@ -76,43 +99,49 @@ export function MobileCalendarView() {
   const bookingSpans = useMemo<MobileBookingSpan[]>(() => {
     if (!property) return [];
 
-    const dayIndexByDate = new Map(
-      days.map((day, index) => [day.dateStr, index] as const)
-    );
+    const spans: MobileBookingSpan[] = [];
+    const processedBookingIds = new Set<string>();
 
-    return bookings
-      .filter(
-        (booking) =>
-          booking.propertyId === property.id && booking.status !== 'cancelled'
-      )
-      .map((booking) => {
-        const allNights = getBookingOccupiedNights(booking);
-        const visibleNights = allNights.filter((night) =>
-          dayIndexByDate.has(night.dateStr)
+    days.forEach((day, startIndex) => {
+      const state = getCellBookingState(property.id, day.dateStr, bookings);
+      if (
+        !state.isOccupied ||
+        !state.booking ||
+        processedBookingIds.has(state.booking.id)
+      ) {
+        return;
+      }
+
+      const booking = state.booking;
+      const visibleDates: string[] = [];
+      let cursor = startIndex;
+
+      while (cursor < days.length) {
+        const cursorState = getCellBookingState(
+          property.id,
+          days[cursor].dateStr,
+          bookings
         );
+        if (
+          !cursorState.isOccupied ||
+          cursorState.booking?.id !== booking.id
+        ) {
+          break;
+        }
+        visibleDates.push(days[cursor].dateStr);
+        cursor += 1;
+      }
 
-        if (visibleNights.length === 0) return null;
+      processedBookingIds.add(booking.id);
+      spans.push({
+        key: `mobile-booking-${booking.id}-${day.dateStr}`,
+        booking,
+        startIndex,
+        visibleDates,
+      });
+    });
 
-        const indexes = visibleNights
-          .map((night) => dayIndexByDate.get(night.dateStr))
-          .filter((index): index is number => index != null);
-        const startIndex = Math.min(...indexes);
-        const endIndex = Math.max(...indexes);
-
-        return {
-          booking,
-          startIndex,
-          rowSpan: endIndex - startIndex + 1,
-          visibleNights: visibleNights.length,
-          totalNights: allNights.length,
-          totalCents: allNights.reduce(
-            (sum, night) => sum + night.allocatedRevenueCents,
-            0
-          ),
-        };
-      })
-      .filter((span): span is MobileBookingSpan => Boolean(span))
-      .sort((left, right) => left.startIndex - right.startIndex);
+    return spans;
   }, [bookings, days, property]);
 
   const financials = property
@@ -135,7 +164,7 @@ export function MobileCalendarView() {
 
   if (!property) {
     return (
-      <div className="flex h-full items-center justify-center p-6 text-xs text-slate-500 md:hidden">
+      <div className="flex h-full items-center justify-center p-6 text-xs text-[#756e69] md:hidden">
         Add an active property from Settings.
       </div>
     );
@@ -151,6 +180,13 @@ export function MobileCalendarView() {
       </span>
     ),
   }));
+
+  const openNewBooking = (dateStr?: string) => {
+    openModal('booking_add', {
+      prefilledPropertyId: property.id,
+      ...(dateStr ? { prefilledDate: dateStr } : {}),
+    });
+  };
 
   const openReports = () => {
     sessionStorage.setItem(REPORT_PROPERTY_SESSION_KEY, property.id);
@@ -194,162 +230,193 @@ export function MobileCalendarView() {
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-[max(6rem,env(safe-area-inset-bottom))] no-scrollbar">
         {section === 'schedule' ? (
-          <div className="grid auto-rows-[58px] grid-cols-[58px_minmax(0,1fr)_36px] bg-white">
+          <div
+            className="relative grid grid-cols-[58px_minmax(0,1fr)] bg-white"
+            style={{
+              gridTemplateRows: `repeat(${days.length}, ${MOBILE_DAY_ROW_HEIGHT}px)`,
+            }}
+          >
             {days.map((day, index) => {
               const state = getCellBookingState(
                 property.id,
                 day.dateStr,
                 bookings
               );
-              const occupiedBooking = state.isOccupied ? state.booking : null;
+              const checkoutBooking =
+                !state.isOccupied && state.isCheckOut ? state.booking : null;
 
               return (
                 <React.Fragment key={day.dateStr}>
                   <div
-                    aria-hidden="true"
-                    className={`z-0 border-b border-[#e7dfdb] ${
-                      day.isToday
-                        ? 'bg-[#fff0ef]'
-                        : day.isWeekend
-                          ? 'bg-[#faf8f6]'
-                          : 'bg-white'
-                    }`}
-                    style={{ gridColumn: '1 / -1', gridRow: index + 1 }}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      occupiedBooking
-                        ? openModal('booking_edit', {
-                            bookingId: occupiedBooking.id,
-                          })
-                        : openModal('booking_add', {
-                            prefilledPropertyId: property.id,
-                            prefilledDate: day.dateStr,
-                          })
-                    }
-                    className="z-10 flex flex-col items-center justify-center text-center"
                     style={{ gridColumn: 1, gridRow: index + 1 }}
-                    aria-label={`${day.dayNumber} ${day.weekday}`}
+                    className={`z-[1] flex flex-col items-center justify-center border-b border-r border-[#e7dfdb] ${
+                      day.isToday
+                        ? 'bg-[#fff0ef] text-[#c73e44]'
+                        : day.isWeekend
+                          ? 'bg-[#faf8f6] text-[#4f4946]'
+                          : 'bg-white text-[#24211f]'
+                    }`}
                   >
-                    <span className="block text-sm font-extrabold text-[#24211f]">
+                    <span className="text-sm font-extrabold leading-none">
                       {day.dayNumber}
                     </span>
-                    <span className="text-[8px] font-extrabold uppercase text-[#756e69]">
+                    <span className="mt-1 text-[8px] font-extrabold uppercase tracking-wide text-[#756e69]">
                       {day.weekday}
                     </span>
-                  </button>
+                  </div>
 
-                  {!state.isOccupied && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openModal('booking_add', {
-                          prefilledPropertyId: property.id,
-                          prefilledDate: day.dateStr,
-                        })
-                      }
-                      className="z-10 flex items-center px-3 text-left text-[10px] font-extrabold uppercase text-[#9a918c]"
-                      style={{ gridColumn: 2, gridRow: index + 1 }}
-                    >
-                      Available
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      occupiedBooking
-                        ? openModal('booking_edit', {
-                            bookingId: occupiedBooking.id,
-                          })
-                        : openModal('booking_add', {
-                            prefilledPropertyId: property.id,
-                            prefilledDate: day.dateStr,
-                          })
-                    }
-                    className="z-30 flex items-center justify-center text-[#ff5a5f]"
-                    style={{ gridColumn: 3, gridRow: index + 1 }}
-                    aria-label={occupiedBooking ? 'Edit booking' : 'Add booking'}
+                  <div
+                    style={{ gridColumn: 2, gridRow: index + 1 }}
+                    className={`border-b border-[#e7dfdb] ${
+                      day.isToday
+                        ? 'bg-[#fff8f7]'
+                        : day.isWeekend
+                          ? 'bg-[#fdfaf8]'
+                          : 'bg-white'
+                    }`}
                   >
-                    <CalendarPlus className="h-4 w-4" />
-                  </button>
+                    {!state.isOccupied &&
+                      (checkoutBooking ? (
+                        <div className="flex h-full items-center justify-between gap-2 px-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openModal('booking_edit', {
+                                bookingId: checkoutBooking.id,
+                              })
+                            }
+                            className="flex min-w-0 items-center gap-2 text-left"
+                          >
+                            <LogOut className="h-3.5 w-3.5 flex-shrink-0 text-[#b7791f]" />
+                            <span className="block min-w-0 truncate text-[10px] font-extrabold text-[#4f4946]">
+                              Checkout ·{' '}
+                              {getGuestDisplayName(checkoutBooking.guestName)}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openNewBooking(day.dateStr)}
+                            className="flex h-8 flex-shrink-0 items-center gap-1 rounded-lg border border-[#e7dfdb] bg-white px-2 text-[8px] font-extrabold uppercase text-[#6f6864]"
+                          >
+                            <CalendarPlus className="h-3 w-3 text-[#ff5a5f]" />
+                            Book
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openNewBooking(day.dateStr)}
+                          className="flex h-full w-full items-center justify-between gap-3 px-3 text-left hover:bg-[#fff7f5]"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <CircleDot className="h-3.5 w-3.5 flex-shrink-0 text-[#18a875]" />
+                            <span className="text-[10px] font-extrabold uppercase tracking-wide text-[#9a918c]">
+                              Available
+                            </span>
+                          </div>
+                          <CalendarPlus className="h-4 w-4 flex-shrink-0 text-[#ff5a5f]" />
+                        </button>
+                      ))}
+                  </div>
                 </React.Fragment>
               );
             })}
 
             {bookingSpans.map((span) => {
-              const channelConfig = CHANNEL_CONFIG[span.booking.channel];
-              const guestName = getGuestDisplayName(span.booking.guestName);
-              const compact = span.rowSpan === 1;
+              const booking = span.booking;
+              const channel = channelMeta[booking.channel];
+              const occupiedBookingNights = getBookingOccupiedNights(booking);
+              const guestName = getGuestDisplayName(booking.guestName);
+              const isCompact = span.visibleDates.length <= 2;
+              const provisionalStripeClass =
+                booking.status === 'provisional' && showProvisionalBlock
+                  ? 'bg-[linear-gradient(45deg,rgba(76,57,52,0.10)_25%,transparent_25%,transparent_50%,rgba(76,57,52,0.10)_50%,rgba(76,57,52,0.10)_75%,transparent_75%,transparent)] bg-[length:12px_12px]'
+                  : '';
+
+              const revenueForNight = (dateStr: string) =>
+                occupiedBookingNights.find((night) => night.dateStr === dateStr)
+                  ?.allocatedRevenueCents ?? booking.nightlyRateCents;
+
+              const visibleTotalCents = span.visibleDates.reduce(
+                (total, dateStr) => total + revenueForNight(dateStr),
+                0
+              );
 
               return (
                 <button
-                  key={span.booking.id}
+                  key={span.key}
                   type="button"
                   onClick={() =>
-                    openModal('booking_edit', { bookingId: span.booking.id })
+                    openModal('booking_edit', { bookingId: booking.id })
                   }
-                  className={`z-20 m-1 min-h-0 overflow-hidden rounded-xl border text-left shadow-sm transition-transform active:scale-[0.99] ${
-                    channelConfig.colorClass
-                  } ${
-                    span.booking.status === 'provisional'
-                      ? 'border-dashed'
-                      : ''
-                  }`}
                   style={{
                     gridColumn: 2,
-                    gridRow: `${span.startIndex + 1} / span ${span.rowSpan}`,
+                    gridRow: `${span.startIndex + 1} / span ${span.visibleDates.length}`,
                   }}
+                  className={`z-10 min-h-0 overflow-hidden border text-left shadow-[0_6px_18px_rgba(52,42,37,0.08)] ${channel.block} ${provisionalStripeClass}`}
                 >
                   <div
-                    className={`flex h-full min-h-0 flex-col ${
-                      compact ? 'justify-center px-3 py-2' : 'p-3'
+                    className={`grid h-full min-h-0 ${
+                      isCompact
+                        ? 'grid-cols-[96px_minmax(0,1fr)]'
+                        : 'grid-cols-[66px_minmax(0,1fr)]'
                     }`}
                   >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={`h-2 w-2 flex-shrink-0 rounded-full ${channelConfig.dotColor}`}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-extrabold normal-case">
-                        {guestName}
-                      </span>
-                      <span
-                        className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-[8px] font-bold ${channelConfig.badgeClass}`}
-                      >
-                        {channelConfig.name}
-                      </span>
-                    </div>
-
-                    {compact ? (
-                      <span className="mt-1 block text-[9px] font-semibold opacity-75">
-                        {formatCents(span.booking.nightlyRateCents)} / night
-                      </span>
-                    ) : (
-                      <>
-                        <span className="mt-2 text-[9px] font-semibold opacity-75">
-                          {formatMobileDate(span.booking.checkInDate)} →{' '}
-                          {formatMobileDate(span.booking.checkOutDate)} ·{' '}
-                          {span.totalNights}{' '}
-                          {span.totalNights === 1 ? 'night' : 'nights'}
-                        </span>
-                        <div className="mt-auto flex items-end justify-between gap-2 border-t border-current/15 pt-2">
-                          <span className="text-[9px] font-semibold opacity-75">
-                            {formatCents(span.booking.nightlyRateCents)} / night
+                    <div
+                      className={`flex min-h-0 flex-col overflow-hidden border-r ${channel.rail}`}
+                    >
+                      {isCompact ? (
+                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-2 py-1 text-center">
+                          <span className="w-full truncate text-[8px] font-extrabold uppercase tracking-wide text-white">
+                            {guestName}
                           </span>
-                          <strong className="text-[11px] font-extrabold">
-                            {formatCents(span.totalCents)}
+                          <strong className="mt-0.5 text-[8px] font-extrabold text-white">
+                            {formatCents(visibleTotalCents)}
                           </strong>
                         </div>
-                      </>
-                    )}
+                      ) : (
+                        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden py-1">
+                          <div
+                            className="flex items-center gap-2 whitespace-nowrap"
+                            style={{
+                              writingMode: 'vertical-rl',
+                              transform: 'rotate(180deg)',
+                            }}
+                          >
+                            <span className="max-h-full overflow-hidden text-ellipsis text-[10px] font-extrabold uppercase tracking-wide text-white">
+                              {guestName}
+                            </span>
+                            <strong className="text-[9px] font-extrabold text-white">
+                              {formatCents(visibleTotalCents)}
+                            </strong>
+                          </div>
+                        </div>
+                      )}
 
-                    {span.visibleNights < span.totalNights && (
-                      <span className="mt-1 text-[8px] font-semibold opacity-60">
-                        Continues outside this month
-                      </span>
-                    )}
+                      {!isCompact && (
+                        <span
+                          className={`mx-auto mb-1 flex-shrink-0 rounded border px-1 py-0.5 text-[6px] font-extrabold uppercase leading-none ${channel.badge}`}
+                        >
+                          {channel.label.slice(0, 3)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex min-h-0 flex-col">
+                      {span.visibleDates.map((dateStr) => (
+                        <div
+                          key={dateStr}
+                          className="flex min-h-0 flex-1 items-center justify-between gap-2 border-b border-black/5 px-3 last:border-b-0"
+                        >
+                          <span className="text-[10px] font-extrabold">
+                            {Number(dateStr.slice(-2))}
+                          </span>
+                          <span className="text-[9px] font-extrabold">
+                            {formatCents(revenueForNight(dateStr))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </button>
               );
@@ -420,15 +487,15 @@ export function MobileCalendarView() {
         ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() =>
-          openModal('booking_add', { prefilledPropertyId: property.id })
-        }
-        className="absolute bottom-4 right-4 flex h-12 items-center gap-2 rounded-full bg-[#ff5a5f] px-5 text-xs font-extrabold uppercase text-white shadow-xl"
-      >
-        <CalendarPlus className="h-4 w-4" /> New Booking
-      </button>
+      {section === 'schedule' && (
+        <button
+          type="button"
+          onClick={() => openNewBooking()}
+          className="absolute bottom-4 right-4 flex h-12 items-center gap-2 rounded-full bg-[#ff5a5f] px-5 text-xs font-extrabold uppercase text-white shadow-xl"
+        >
+          <CalendarPlus className="h-4 w-4" /> New Booking
+        </button>
+      )}
     </div>
   );
 }
