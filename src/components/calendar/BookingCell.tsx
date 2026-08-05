@@ -30,7 +30,7 @@ export function BookingCell({
   const showProvisionalBlock = useDashboardStore(
     (state) => state.userPreferences.showProvisionalBlock
   );
-  const { booking, isOccupied, isCheckIn, isCheckOut, nightIndex } = cellState;
+  const { booking, isOccupied, isCheckIn, nightIndex } = cellState;
 
   const handleClick = () => {
     setHoveredCell(null);
@@ -52,11 +52,6 @@ export function BookingCell({
   }
 
   if (!isOccupied || !booking) {
-    const checkoutChannel =
-      isCheckOut && booking
-        ? CHANNEL_CONFIG[booking.channel] || CHANNEL_CONFIG.airbnb
-        : null;
-
     return (
       <div
         onClick={handleClick}
@@ -64,29 +59,9 @@ export function BookingCell({
         onMouseLeave={() => setHoveredCell(null)}
         role="button"
         tabIndex={0}
-        title={
-          checkoutChannel && booking
-            ? `${booking.guestName} checks out on ${dateStr}`
-            : undefined
-        }
-        className={`relative flex h-9 w-[190px] min-w-[160px] cursor-pointer items-center justify-center overflow-hidden border-r border-b border-[#ece6e2] sm:h-10 ${bgClass}`}
+        className={`relative flex h-9 w-[190px] min-w-[160px] cursor-pointer items-center justify-center border-r border-b border-[#ece6e2] sm:h-10 ${bgClass}`}
       >
-        {checkoutChannel && (
-          <>
-            <span
-              className="pointer-events-none absolute inset-y-0 left-0 w-[42%] opacity-80"
-              style={{
-                backgroundColor: `${checkoutChannel.hex}1f`,
-                clipPath: 'polygon(0 0, 100% 0, 0 100%)',
-              }}
-            />
-            <span
-              className="pointer-events-none absolute left-0 top-0 h-[3px] w-[42%]"
-              style={{ backgroundColor: checkoutChannel.hex }}
-            />
-          </>
-        )}
-        <span className="relative z-10 text-[10px] font-extrabold text-[#c73e44] opacity-0 transition-opacity hover:opacity-100">
+        <span className="text-[10px] font-extrabold text-[#c73e44] opacity-0 transition-opacity hover:opacity-100">
           + Book
         </span>
       </div>
@@ -116,8 +91,7 @@ export function BookingCell({
     (sum, night) => sum + night.allocatedRevenueCents,
     0
   );
-  const channelConfig =
-    CHANNEL_CONFIG[booking.channel] || CHANNEL_CONFIG.airbnb;
+  const channelConfig = CHANNEL_CONFIG[booking.channel] || CHANNEL_CONFIG.airbnb;
   const stripe =
     booking.status === 'provisional' && showProvisionalBlock
       ? 'bg-[linear-gradient(45deg,rgba(76,57,52,0.10)_25%,transparent_25%,transparent_50%,rgba(76,57,52,0.10)_50%,rgba(76,57,52,0.10)_75%,transparent_75%,transparent)] bg-[length:12px_12px]'
@@ -147,9 +121,7 @@ export function BookingCell({
         <div className="booking-summary-rail">
           <div className="booking-summary-vertical">
             <span className="booking-summary-name">{booking.guestName}</span>
-            <strong className="booking-summary-total">
-              {formatCents(totalCents)}
-            </strong>
+            <strong className="booking-summary-total">{formatCents(totalCents)}</strong>
           </div>
           <span className={`booking-channel-badge ${channelConfig.badgeClass}`}>
             {channelConfig.name.slice(0, 3)}
