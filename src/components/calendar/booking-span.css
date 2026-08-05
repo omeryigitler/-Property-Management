@@ -198,4 +198,8 @@
   .booking-night-rate {
     font-size: 10px;
   }
+
+  .md\:hidden button[class*="border-[#ece6e2]"] > span {
+    display: none;
+  }
 }
