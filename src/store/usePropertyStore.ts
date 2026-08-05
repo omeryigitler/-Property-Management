@@ -102,6 +102,15 @@ function normalizeProperty(
   };
 }
 
+export function resolvePropertyActiveState(
+  requestedActive: boolean,
+  otherActiveExists: boolean
+): boolean {
+  return requestedActive === false && !otherActiveExists
+    ? true
+    : requestedActive;
+}
+
 function orderActiveProperties(
   properties: PropertyConfig[],
   locations: LocationConfig[] = LOCATIONS
@@ -321,7 +330,10 @@ export const usePropertyStore = create<PropertyStoreState>((set, get) => ({
     const otherActiveExists = current.properties.some(
       (property) => property.id !== id && property.active !== false
     );
-    const safeActive = updates.active || otherActiveExists;
+    const safeActive = resolvePropertyActiveState(
+      updates.active,
+      otherActiveExists
+    );
     const properties = current.properties.map((property) =>
       property.id === id
         ? {

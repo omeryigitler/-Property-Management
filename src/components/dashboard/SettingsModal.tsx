@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Building2,
+  Check,
   Database,
   Home,
   Plus,
@@ -66,7 +67,6 @@ export function SettingsModal() {
   const addLocation = usePropertyStore((state) => state.addLocation);
   const addProperty = usePropertyStore((state) => state.addProperty);
   const updateProperty = usePropertyStore((state) => state.updateProperty);
-  const replaceCatalog = usePropertyStore((state) => state.replaceCatalog);
 
   const [section, setSection] = useState<SettingsSection>('overview');
   const [newLocationName, setNewLocationName] = useState('');
@@ -86,9 +86,7 @@ export function SettingsModal() {
   }, [activeModal, modalParams]);
 
   useEffect(() => {
-    if (
-      !locations.some((location) => location.id === newPropertyLocation)
-    ) {
+    if (!locations.some((location) => location.id === newPropertyLocation)) {
       setNewPropertyLocation(locations[0]?.id ?? '');
     }
   }, [locations, newPropertyLocation]);
@@ -116,11 +114,12 @@ export function SettingsModal() {
       return;
     }
 
-    const duplicate = locations.some(
-      (location) =>
-        location.name.trim().toLowerCase() === cleanName.toLowerCase()
-    );
-    if (duplicate) {
+    if (
+      locations.some(
+        (location) =>
+          location.name.trim().toLowerCase() === cleanName.toLowerCase()
+      )
+    ) {
       addToast({
         type: 'warning',
         title: 'Location already exists',
@@ -167,12 +166,13 @@ export function SettingsModal() {
       return;
     }
 
-    const duplicate = properties.some(
-      (property) =>
-        property.locationId === newPropertyLocation &&
-        property.name.trim().toLowerCase() === cleanName.toLowerCase()
-    );
-    if (duplicate) {
+    if (
+      properties.some(
+        (property) =>
+          property.locationId === newPropertyLocation &&
+          property.name.trim().toLowerCase() === cleanName.toLowerCase()
+      )
+    ) {
       addToast({
         type: 'warning',
         title: 'Property already exists',
@@ -199,6 +199,31 @@ export function SettingsModal() {
     });
   };
 
+  const togglePropertyActive = (property: PropertyConfig) => {
+    if (property.active && activeProperties.length <= 1) {
+      addToast({
+        type: 'warning',
+        title: 'One active property required',
+        message: 'Activate another property before disabling this one.',
+      });
+      return;
+    }
+
+    const nextActive = !property.active;
+    updateProperty(property.id, {
+      name: property.name,
+      locationId: property.locationId,
+      active: nextActive,
+    });
+    addToast({
+      type: 'success',
+      title: nextActive ? 'Property activated' : 'Property hidden',
+      message: nextActive
+        ? `${property.name} is visible in the calendar.`
+        : `${property.name} is hidden from the calendar and reports.`,
+    });
+  };
+
   const requestPropertyDeletion = (property: PropertyConfig) => {
     if (properties.length <= 1) {
       addToast({
@@ -218,8 +243,7 @@ export function SettingsModal() {
     const linkedIncomes = extraIncomes.filter(
       (income) => income.propertyId === property.id
     ).length;
-    const linkedRecords =
-      linkedBookings + linkedExpenses + linkedIncomes;
+    const linkedRecords = linkedBookings + linkedExpenses + linkedIncomes;
 
     const linkedSummary = [
       linkedBookings > 0
@@ -260,12 +284,10 @@ export function SettingsModal() {
         });
 
         const catalog = usePropertyStore.getState();
-        const remainingProperties = catalog.properties.filter(
-          (item) => item.id !== property.id
+        usePropertyStore.getState().replaceCatalog(
+          catalog.locations,
+          catalog.properties.filter((item) => item.id !== property.id)
         );
-        usePropertyStore
-          .getState()
-          .replaceCatalog(catalog.locations, remainingProperties);
 
         const nextDashboard = useDashboardStore.getState();
         nextDashboard.addActivity(
@@ -307,7 +329,7 @@ export function SettingsModal() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-          <nav className="flex flex-shrink-0 gap-1 overflow-x-auto border-b border-[#eee8e5] bg-[#fffdfc] p-2 no-scrollbar sm:w-60 sm:flex-col sm:border-b-0 sm:border-r sm:p-3">
+          <nav className="flex flex-shrink-0 gap-1 overflow-x-auto border-b border-[#eee8e5] bg-[#fffdfc] p-2 no-scrollbar sm:w-52 sm:flex-col sm:border-b-0 sm:border-r sm:p-3">
             {sections.map((item) => (
               <button
                 key={item.id}
@@ -325,7 +347,7 @@ export function SettingsModal() {
             ))}
           </nav>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-[#fbfaf9] p-4 no-scrollbar sm:p-6">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#fbfaf9] p-3 no-scrollbar sm:p-5">
             {section === 'overview' && (
               <div className="space-y-4">
                 <div>
@@ -370,7 +392,7 @@ export function SettingsModal() {
             )}
 
             {section === 'properties' && (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <div>
                   <h4 className="font-display text-lg font-extrabold tracking-[-0.02em] text-[#222222]">
                     Locations & Properties
@@ -380,12 +402,12 @@ export function SettingsModal() {
                   </p>
                 </div>
 
-                <div className="grid gap-5 rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_8px_26px_rgba(55,42,36,0.05)] lg:grid-cols-2">
-                  <div className="space-y-2">
-                    <span className="text-sm font-semibold text-[#4d4744]">
-                      New Location
-                    </span>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="grid gap-3 rounded-2xl border border-[#eee8e5] bg-white p-3 shadow-[0_8px_26px_rgba(55,42,36,0.05)] xl:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_132px] sm:items-end">
+                    <label className="space-y-1.5">
+                      <span className="text-xs font-semibold text-[#6f6763]">
+                        New Location
+                      </span>
                       <input
                         value={newLocationName}
                         onChange={(event) =>
@@ -398,23 +420,23 @@ export function SettingsModal() {
                           }
                         }}
                         placeholder="Location name"
-                        className="h-11 min-w-0 rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
+                        className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
                       />
-                      <button
-                        type="button"
-                        onClick={addNewLocation}
-                        className="flex h-11 w-full items-center justify-center gap-1 rounded-xl border border-[#ffd1ce] bg-[#fff0ef] px-4 text-xs font-bold text-[#c83f45] transition-colors hover:bg-[#ffe8e6] sm:w-auto"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Location
-                      </button>
-                    </div>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addNewLocation}
+                      className="flex h-11 w-full items-center justify-center gap-1 rounded-xl border border-[#ffd1ce] bg-[#fff0ef] px-3 text-xs font-bold text-[#c83f45] transition-colors hover:bg-[#ffe8e6]"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add Location
+                    </button>
                   </div>
 
-                  <div className="space-y-2">
-                    <span className="text-sm font-semibold text-[#4d4744]">
-                      New Property
-                    </span>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_132px] sm:items-end">
+                    <label className="space-y-1.5">
+                      <span className="text-xs font-semibold text-[#6f6763]">
+                        New Property
+                      </span>
                       <input
                         value={newPropertyName}
                         onChange={(event) =>
@@ -427,32 +449,44 @@ export function SettingsModal() {
                           }
                         }}
                         placeholder="Property name"
-                        className="h-11 min-w-0 rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
+                        className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
                       />
-                      <CustomSelect
-                        value={newPropertyLocation}
-                        options={locationOptions}
-                        onChange={setNewPropertyLocation}
-                      />
-                      <button
-                        type="button"
-                        onClick={addNewProperty}
-                        className="flex h-11 w-full items-center justify-center gap-1 rounded-xl bg-[#ff5a5f] px-4 text-xs font-bold text-white shadow-[0_8px_18px_rgba(255,90,95,0.20)] transition-colors hover:bg-[#e94f54] sm:w-auto"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Property
-                      </button>
-                    </div>
+                    </label>
+                    <CustomSelect
+                      label="Location"
+                      value={newPropertyLocation}
+                      options={locationOptions}
+                      onChange={setNewPropertyLocation}
+                    />
+                    <button
+                      type="button"
+                      onClick={addNewProperty}
+                      className="flex h-11 w-full items-center justify-center gap-1 rounded-xl bg-[#ff5a5f] px-3 text-xs font-bold text-white shadow-[0_8px_18px_rgba(255,90,95,0.20)] transition-colors hover:bg-[#e94f54]"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add Property
+                    </button>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  {properties.map((property) => (
+                <div className="overflow-hidden rounded-2xl border border-[#e8e1dd] bg-white shadow-[0_8px_24px_rgba(55,42,36,0.04)]">
+                  <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(180px,0.8fr)_104px_104px] gap-2 border-b border-[#eee8e5] bg-[#fffaf9] px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-[#817873] md:grid">
+                    <span>Property</span>
+                    <span>Location</span>
+                    <span>Status</span>
+                    <span>Action</span>
+                  </div>
+
+                  {properties.map((property, index) => (
                     <div
                       key={property.id}
-                      className="grid grid-cols-1 gap-3 rounded-2xl border border-[#eee8e5] bg-white p-4 shadow-[0_6px_20px_rgba(55,42,36,0.04)] md:grid-cols-[minmax(0,1fr)_220px_220px] md:items-end"
+                      className={`grid grid-cols-1 gap-2 p-3 md:grid-cols-[minmax(0,1.35fr)_minmax(180px,0.8fr)_104px_104px] md:items-center ${
+                        index < properties.length - 1
+                          ? 'border-b border-[#eee8e5]'
+                          : ''
+                      } ${property.active ? 'bg-white' : 'bg-[#faf8f7]'}`}
                     >
-                      <label className="space-y-1.5">
-                        <span className="text-xs font-semibold text-[#8a817d]">
+                      <label className="space-y-1 md:space-y-0">
+                        <span className="text-[11px] font-bold text-[#817873] md:hidden">
                           Property
                         </span>
                         <input
@@ -464,12 +498,12 @@ export function SettingsModal() {
                               active: property.active,
                             })
                           }
-                          className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm font-semibold text-[#222222] outline-none transition-all focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
+                          className="h-10 w-full rounded-xl border border-[#ded8d4] bg-white px-3 text-sm font-semibold text-[#222222] outline-none transition-all focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
                         />
                       </label>
 
                       <CustomSelect
-                        label="Location"
+                        label={undefined}
                         value={property.locationId}
                         options={locationOptions}
                         onChange={(value) =>
@@ -481,32 +515,29 @@ export function SettingsModal() {
                         }
                       />
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#ded8d4] bg-[#fffdfc] px-3 text-xs font-bold text-[#4f4f4f]">
-                          <input
-                            type="checkbox"
-                            checked={property.active}
-                            onChange={(event) =>
-                              updateProperty(property.id, {
-                                name: property.name,
-                                locationId: property.locationId,
-                                active: event.target.checked,
-                              })
-                            }
-                          />
-                          Active
-                        </label>
+                      <button
+                        type="button"
+                        aria-pressed={property.active}
+                        onClick={() => togglePropertyActive(property)}
+                        className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-extrabold transition-colors ${
+                          property.active
+                            ? 'border-[#b9ddcf] bg-[#edf8f3] text-[#1f6b4e] hover:bg-[#e1f3eb]'
+                            : 'border-[#ded8d4] bg-[#f7f4f2] text-[#817873] hover:bg-[#eee9e6]'
+                        }`}
+                      >
+                        <Check className={`h-4 w-4 ${property.active ? '' : 'opacity-30'}`} />
+                        {property.active ? 'Active' : 'Inactive'}
+                      </button>
 
-                        <button
-                          type="button"
-                          onClick={() => requestPropertyDeletion(property)}
-                          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#f1c9c6] bg-[#fff5f4] px-3 text-xs font-bold text-[#b13a40] transition-colors hover:bg-[#ffebe9]"
-                          aria-label={`Delete ${property.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => requestPropertyDeletion(property)}
+                        className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#f1c9c6] bg-[#fff5f4] px-2 text-xs font-extrabold text-[#b13a40] transition-colors hover:bg-[#ffebe9]"
+                        aria-label={`Delete ${property.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
                     </div>
                   ))}
                 </div>

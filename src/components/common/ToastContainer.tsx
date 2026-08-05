@@ -1,50 +1,63 @@
 import React from 'react';
-import { CheckCircle2, AlertCircle, AlertTriangle, Info, X, RotateCcw } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  RotateCcw,
+  X,
+} from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 
 export function ToastContainer() {
-  const toasts = useDashboardStore((s) => s.toasts);
-  const removeToast = useDashboardStore((s) => s.removeToast);
+  const toasts = useDashboardStore((state) => state.toasts);
+  const removeToast = useDashboardStore((state) => state.removeToast);
 
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-[110] flex flex-col gap-2.5 max-w-sm w-full px-4 pointer-events-none">
+    <div className="pointer-events-none fixed inset-x-0 bottom-3 z-[110] flex flex-col items-center gap-2 px-3 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[380px] sm:items-stretch sm:px-0">
       {toasts.map((toast) => {
         const icon =
           toast.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-[#1f8a63]" />
           ) : toast.type === 'error' ? (
-            <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <AlertCircle className="h-5 w-5 flex-shrink-0 text-[#c83f45]" />
           ) : toast.type === 'warning' ? (
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <AlertTriangle className="h-5 w-5 flex-shrink-0 text-[#a66a17]" />
           ) : (
-            <Info className="w-5 h-5 text-cyan-400 flex-shrink-0" />
+            <Info className="h-5 w-5 flex-shrink-0 text-[#285f7d]" />
           );
 
-        const borderClass =
+        const surfaceClass =
           toast.type === 'success'
-            ? 'border-emerald-800/80 bg-slate-900/95 text-slate-100'
+            ? 'border-[#b9ddcf] bg-[#f1faf6]'
             : toast.type === 'error'
-            ? 'border-rose-800/80 bg-slate-900/95 text-slate-100'
-            : toast.type === 'warning'
-            ? 'border-amber-800/80 bg-slate-900/95 text-slate-100'
-            : 'border-cyan-800/80 bg-slate-900/95 text-slate-100';
+              ? 'border-[#efc3c0] bg-[#fff3f2]'
+              : toast.type === 'warning'
+                ? 'border-[#ecd6aa] bg-[#fff8ea]'
+                : 'border-[#c6ddeb] bg-[#f2f8fc]';
 
         return (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-start justify-between gap-3 p-3.5 rounded-xl border shadow-2xl backdrop-blur-md transition-all animate-slide-up ${borderClass}`}
+            className={`pointer-events-auto flex w-full max-w-[680px] items-start justify-between gap-3 rounded-2xl border p-3.5 text-[#272321] shadow-[0_14px_40px_rgba(45,32,28,0.16)] backdrop-blur-md transition-all animate-slide-up sm:max-w-none ${surfaceClass}`}
           >
-            <div className="flex items-start gap-2.5">
+            <div className="flex min-w-0 items-start gap-2.5">
               <div className="pt-0.5">{icon}</div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-semibold leading-tight">{toast.title}</span>
-                {toast.message && <span className="text-xs text-slate-300 leading-snug">{toast.message}</span>}
+              <div className="min-w-0 flex-1">
+                <span className="block text-sm font-extrabold leading-tight">
+                  {toast.title}
+                </span>
+                {toast.message && (
+                  <span className="mt-1 block text-xs font-medium leading-snug text-[#6f6864]">
+                    {toast.message}
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex flex-shrink-0 items-center gap-1.5">
               {toast.undoAction && (
                 <button
                   type="button"
@@ -52,18 +65,19 @@ export function ToastContainer() {
                     toast.undoAction?.();
                     removeToast(toast.id);
                   }}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-950/80 hover:bg-amber-900 text-amber-300 text-xs font-semibold border border-amber-700/80 transition-colors"
+                  className="flex h-9 items-center gap-1 rounded-lg border border-[#e4c98f] bg-white px-2.5 text-xs font-bold text-[#8a5a14] transition-colors hover:bg-[#fff7e8]"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="h-3.5 w-3.5" />
                   <span>Undo</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => removeToast(toast.id)}
-                className="p-1 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-[#817873] transition-colors hover:bg-white/70 hover:text-[#272321]"
+                aria-label="Dismiss notification"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
