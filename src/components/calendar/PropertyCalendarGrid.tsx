@@ -9,7 +9,6 @@ import { PropertyHeaderRow } from './PropertyHeaderRow';
 import { DayColumn } from './DayColumn';
 import { BookingCell } from './BookingCell';
 import { DailyTotalColumn } from './DailyTotalColumn';
-import { MobileCalendarView } from './MobileCalendarView';
 
 interface PropertyCalendarGridProps {
   children?: React.ReactNode;
@@ -74,10 +73,8 @@ export function PropertyCalendarGrid({ children }: PropertyCalendarGridProps) {
   }, [focusedIndex, daysGrid, bookings, openModal, activeProperties]);
 
   return (
-    <div className="relative flex w-full flex-1 min-h-0 flex-col bg-slate-950">
-      <MobileCalendarView />
-
-      <div className="hidden h-full min-h-0 flex-col md:flex">
+    <div className="relative flex w-full flex-1 min-h-0 flex-col bg-white">
+      <div className="flex h-full min-h-0 flex-col">
         <div
           ref={containerRef}
           className="relative w-full flex-1 overflow-auto custom-scrollbar touch-pan-x touch-pan-y"
@@ -100,7 +97,7 @@ export function PropertyCalendarGrid({ children }: PropertyCalendarGridProps) {
                 <div
                   key={dayItem.dateStr}
                   className={`flex items-center transition-colors ${
-                    dayItem.isWeekend ? 'bg-slate-900/20' : ''
+                    dayItem.isWeekend ? 'bg-[#faf7f5]' : 'bg-white'
                   }`}
                 >
                   <DayColumn
