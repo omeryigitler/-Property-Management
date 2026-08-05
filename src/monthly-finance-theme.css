@@ -1,0 +1,130 @@
+/* Scoped light-theme refinements for Settings > Monthly Finance. */
+[data-theme="airbnb"] [class~="border-cyan-900"][class~="bg-cyan-950/15"] {
+  background: #f5f9fb !important;
+  border-color: #d9e6ec !important;
+  color: #272321 !important;
+}
+
+[data-theme="airbnb"] [class~="border-cyan-900"][class~="bg-cyan-950/15"] p {
+  color: #655e5a !important;
+}
+
+[data-theme="airbnb"] [class~="border-cyan-900"][class~="bg-cyan-950/15"] > span {
+  background: #eaf3f7 !important;
+  border-color: #cbdfe8 !important;
+  color: #315f73 !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] {
+  background: #ffffff !important;
+  border-color: #e4ddd9 !important;
+  color: #272321 !important;
+  box-shadow: 0 10px 28px rgba(55, 42, 36, 0.07) !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"][class~="ring-cyan-500/30"] {
+  border-color: #ff9c9f !important;
+  box-shadow: 0 0 0 3px rgba(255, 90, 95, 0.12), 0 10px 28px rgba(55, 42, 36, 0.07) !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] > div:first-child {
+  border-color: #ebe5e1 !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] h5 {
+  color: #282321 !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.01em !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] h5 + p {
+  color: #7a716c !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="text-violet-300"] {
+  color: #665073 !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] input[class~="bg-slate-900"] {
+  background: #ffffff !important;
+  border-color: #d9d1cc !important;
+  color: #272321 !important;
+  box-shadow: 0 1px 2px rgba(48, 37, 32, 0.03) !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] input[class~="bg-slate-900"]:focus {
+  border-color: #ff7a7e !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(255, 90, 95, 0.12) !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-emerald-900/60"] {
+  background: #f2faf6 !important;
+  border-color: #cfe7db !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-emerald-900/60"] h6,
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-emerald-900/60"] [class~="text-emerald-300"] {
+  color: #25684f !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-emerald-900/60"] button {
+  background: #ffffff !important;
+  border-color: #9fcfb9 !important;
+  color: #25684f !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-rose-900/60"] {
+  background: #fff5f4 !important;
+  border-color: #efd1ce !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-rose-900/60"] h6,
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-rose-900/60"] [class~="text-rose-300"] {
+  color: #a63c42 !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-rose-900/60"] > div:first-child button {
+  background: #ffffff !important;
+  border-color: #e7aaa6 !important;
+  color: #a63c42 !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="border-rose-900/60"] [class~="space-y-2"][class~="rounded-lg"] {
+  background: #ffffff !important;
+  border-color: #eadfdb !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] button[class~="border-rose-900"] {
+  background: #fff8f7 !important;
+  border-color: #e6b7b3 !important;
+  color: #b63d43 !important;
+}
+
+[data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] label[class~="border-slate-800"] {
+  background: #f7f4f2 !important;
+  border-color: #ddd5d0 !important;
+  color: #5f5753 !important;
+}
+
+[data-theme="airbnb"] button[class~="sticky"][class~="bottom-0"][class~="bg-[#ff3e00]"] {
+  background: #ff5a5f !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(255, 90, 95, 0.26) !important;
+}
+
+[data-theme="airbnb"] button[class~="sticky"][class~="bottom-0"][class~="bg-[#ff3e00]"]:hover {
+  background: #e94f54 !important;
+}
+
+@media (max-width: 767px) {
+  [data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] {
+    padding: 14px !important;
+    border-radius: 16px !important;
+  }
+
+  [data-theme="airbnb"] [class~="xl:grid-cols-2"] > [class~="bg-slate-950/75"] [class~="grid-cols-[minmax(0,1fr)_100px_34px]"] {
+    grid-template-columns: minmax(0, 1fr) 82px 34px !important;
+  }
+}

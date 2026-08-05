@@ -5,6 +5,7 @@ import { AppErrorBoundary } from './components/common/AppErrorBoundary';
 import './index.css';
 import './mobile-overrides.css';
 import './theme-contrast.css';
+import './monthly-finance-theme.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
