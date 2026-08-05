@@ -44,12 +44,15 @@ export function CustomDatePicker({
 }: CustomDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const initialDate = value ? parseDateString(value) : new Date();
-  const [viewDate, setViewDate] = useState<Date>(initialDate);
+  const initialAnchor = value || minDate || rangeStart;
+  const [viewDate, setViewDate] = useState<Date>(
+    initialAnchor ? parseDateString(initialAnchor) : new Date()
+  );
 
   useEffect(() => {
-    if (value) setViewDate(parseDateString(value));
-  }, [value]);
+    const nextAnchor = value || minDate || rangeStart;
+    if (nextAnchor) setViewDate(parseDateString(nextAnchor));
+  }, [value, minDate, rangeStart]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -74,11 +77,27 @@ export function CustomDatePicker({
 
   const selectedDateObj = value ? parseDateString(value) : null;
   const rangeStartObj = rangeStart ? parseDateString(rangeStart) : null;
+  const minimumMonth = minDate ? startOfMonth(parseDateString(minDate)) : null;
+  const previousMonth = startOfMonth(subMonths(viewDate, 1));
+  const isPreviousMonthDisabled = Boolean(
+    minimumMonth && isBefore(previousMonth, minimumMonth)
+  );
 
   const handleSelectDay = (dateStr: string) => {
     if (disabled) return;
     onChange(dateStr);
     setIsOpen(false);
+  };
+
+  const toggleOpen = () => {
+    setIsOpen((previous) => {
+      const next = !previous;
+      if (next) {
+        const nextAnchor = value || minDate || rangeStart;
+        if (nextAnchor) setViewDate(parseDateString(nextAnchor));
+      }
+      return next;
+    });
   };
 
   return (
@@ -93,7 +112,7 @@ export function CustomDatePicker({
         id={id}
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen((previous) => !previous)}
+        onClick={toggleOpen}
         className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 focus:ring-[#ff5a5f]/10 ${
           disabled
             ? 'cursor-not-allowed border-[#e7e2df] bg-[#f5f2f0] text-[#aaa3a0] opacity-60'
@@ -124,8 +143,13 @@ export function CustomDatePicker({
           <div className="mb-2 flex items-center justify-between gap-2 border-b border-[#eee8e5] pb-3">
             <button
               type="button"
+              disabled={isPreviousMonthDisabled}
               onClick={() => setViewDate((date) => subMonths(date, 1))}
-              className="rounded-xl border border-[#e7e2df] bg-[#fffdfc] p-1.5 text-[#4f4f4f] transition-colors hover:bg-[#fff5f3]"
+              className={`rounded-xl border p-1.5 transition-colors ${
+                isPreviousMonthDisabled
+                  ? 'cursor-not-allowed border-[#eee8e5] bg-[#faf8f6] text-[#c8c1bd] opacity-60'
+                  : 'border-[#e7e2df] bg-[#fffdfc] text-[#4f4f4f] hover:bg-[#fff5f3]'
+              }`}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
