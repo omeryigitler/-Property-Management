@@ -6,17 +6,21 @@ interface DailyTotalColumnProps {
   isHoveredRow: boolean;
 }
 
-export function DailyTotalColumn({ dailyTotalCents, isHoveredRow }: DailyTotalColumnProps) {
+export function DailyTotalColumn({
+  dailyTotalCents,
+  isHoveredRow,
+}: DailyTotalColumnProps) {
   const bgClass =
     dailyTotalCents > 0
-      ? 'bg-yellow-950/40 text-yellow-200 border-yellow-800/60 font-semibold'
-      : 'bg-slate-950/60 text-slate-500 border-slate-800/80';
-
-  const hoverHighlight = isHoveredRow ? 'bg-yellow-900/60 text-yellow-100' : '';
+      ? 'bg-[#fff8e7] text-[#674c0c] border-[#e8d59d]'
+      : 'bg-[#fcfbfa] text-[#746d69] border-[#ece6e2]';
+  const hoverHighlight = isHoveredRow
+    ? 'bg-[#fff2cf] text-[#5e4509]'
+    : '';
 
   return (
     <div
-      className={`w-[120px] min-w-[110px] h-9 sm:h-10 border-r border-b px-2.5 flex items-center justify-end text-xs font-mono transition-colors ${bgClass} ${hoverHighlight}`}
+      className={`flex h-9 w-[120px] min-w-[110px] items-center justify-end border-r border-b px-2.5 text-xs font-bold tabular-nums transition-colors sm:h-10 ${bgClass} ${hoverHighlight}`}
     >
       <span>{formatCents(dailyTotalCents)}</span>
     </div>

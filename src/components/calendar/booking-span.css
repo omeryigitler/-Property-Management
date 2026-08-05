@@ -24,7 +24,8 @@
   overflow: hidden;
   border-width: 1px;
   border-style: solid;
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.42);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(56, 42, 36, 0.13);
 }
 
 .booking-summary-rail {
@@ -34,8 +35,8 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-right: 1px solid rgba(148, 163, 184, 0.32);
-  background: rgba(2, 6, 23, 0.32);
+  border-right: 1px solid rgba(86, 69, 62, 0.16);
+  background: rgba(255, 255, 255, 0.48);
 }
 
 .booking-summary-vertical {
@@ -56,22 +57,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #2b2725;
 }
 
 .booking-summary-name {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.035em;
+  font-weight: 800;
+  letter-spacing: 0.015em;
   text-transform: uppercase;
-  color: #f8fafc;
 }
 
 .booking-summary-total {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
-  font-weight: 900;
-  color: #f8fafc;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .booking-channel-badge {
@@ -83,12 +84,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-radius: 4px;
-  padding: 1px 4px;
+  border-radius: 6px;
+  padding: 2px 5px;
   font-size: 7px;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1.2;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
@@ -97,7 +98,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: rgba(2, 6, 23, 0.12);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .booking-night-row {
@@ -108,7 +109,7 @@
   justify-content: space-between;
   gap: 8px;
   overflow: hidden;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  border-bottom: 1px solid rgba(86, 69, 62, 0.14);
   padding: 0 10px;
 }
 
@@ -116,12 +117,17 @@
   border-bottom: 0;
 }
 
+.booking-night-date,
+.booking-night-rate {
+  color: #2b2725;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 .booking-night-date {
   flex: 0 0 auto;
-  font-family: 'Syne', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  color: #f8fafc;
 }
 
 .booking-night-rate {
@@ -129,10 +135,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 900;
-  color: #f8fafc;
 }
 
 .booking-span-card--compact {

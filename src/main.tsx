@@ -4,6 +4,7 @@ import App from './App.tsx';
 import { AppErrorBoundary } from './components/common/AppErrorBoundary';
 import './index.css';
 import './mobile-overrides.css';
+import './theme-contrast.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

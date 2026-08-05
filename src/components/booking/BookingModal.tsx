@@ -21,6 +21,8 @@ function euroInputFromCents(cents: number): string {
   return centsToEuros(cents).toFixed(2).replace(/\.00$/, '');
 }
 
+type PricingInput = 'nightly' | 'total';
+
 export function BookingModal() {
   const activeModal = useDashboardStore((state) => state.activeModal);
   const modalParams = useDashboardStore((state) => state.modalParams);
@@ -48,17 +50,27 @@ export function BookingModal() {
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
   const [nightlyRate, setNightlyRate] = useState('');
+  const [totalAmount, setTotalAmount] = useState('');
+  const [pricingInput, setPricingInput] = useState<PricingInput>('nightly');
   const [status, setStatus] = useState<BookingStatus>('confirmed');
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isEditing && editingBooking) {
+      const nights = Math.max(
+        0,
+        calculateNights(editingBooking.checkInDate, editingBooking.checkOutDate)
+      );
       setPropertyId(editingBooking.propertyId);
       setGuestName(editingBooking.guestName);
       setChannel(editingBooking.channel);
       setCheckInDate(editingBooking.checkInDate);
       setCheckOutDate(editingBooking.checkOutDate);
       setNightlyRate(euroInputFromCents(editingBooking.nightlyRateCents));
+      setTotalAmount(
+        nights > 0 ? euroInputFromCents(nights * editingBooking.nightlyRateCents) : ''
+      );
+      setPricingInput('nightly');
       setStatus(editingBooking.status === 'provisional' ? 'provisional' : 'confirmed');
       setFormError(null);
       return;
@@ -73,31 +85,40 @@ export function BookingModal() {
       setCheckInDate('');
       setCheckOutDate('');
       setNightlyRate(euroInputFromCents(copiedBooking.nightlyRateCents));
+      setTotalAmount('');
+      setPricingInput('nightly');
       setStatus('confirmed');
       setFormError('Select new check-in and check-out dates for the copied reservation.');
       return;
     }
 
     const prefilledDate = String(modalParams.prefilledDate || '');
-    setPropertyId(modalParams.prefilledPropertyId || ALL_PROPERTIES[0]?.id || '');
-    setGuestName('');
-    setChannel('airbnb');
-    setCheckInDate(prefilledDate);
-    setNightlyRate('120');
-    setStatus('confirmed');
+    const defaultNightlyRateCents = 12_000;
+    let nextCheckOutDate = '';
 
     if (prefilledDate) {
       const [year, month, day] = prefilledDate.split('-').map(Number);
       const checkout = new Date(year, month - 1, day);
       checkout.setDate(checkout.getDate() + 2);
-      setCheckOutDate(
-        `${checkout.getFullYear()}-${String(checkout.getMonth() + 1).padStart(2, '0')}-${String(
-          checkout.getDate()
-        ).padStart(2, '0')}`
-      );
-    } else {
-      setCheckOutDate('');
+      nextCheckOutDate = `${checkout.getFullYear()}-${String(
+        checkout.getMonth() + 1
+      ).padStart(2, '0')}-${String(checkout.getDate()).padStart(2, '0')}`;
     }
+
+    const defaultNights = Math.max(0, calculateNights(prefilledDate, nextCheckOutDate));
+    setPropertyId(modalParams.prefilledPropertyId || ALL_PROPERTIES[0]?.id || '');
+    setGuestName('');
+    setChannel('airbnb');
+    setCheckInDate(prefilledDate);
+    setCheckOutDate(nextCheckOutDate);
+    setNightlyRate(euroInputFromCents(defaultNightlyRateCents));
+    setTotalAmount(
+      defaultNights > 0
+        ? euroInputFromCents(defaultNights * defaultNightlyRateCents)
+        : ''
+    );
+    setPricingInput('nightly');
+    setStatus('confirmed');
     setFormError(null);
   }, [isEditing, isAdding, editingBooking, copiedBooking, modalParams]);
 
@@ -116,11 +137,36 @@ export function BookingModal() {
     [bookings, editingBooking?.id, propertyId]
   );
 
+  const nightsCount = Math.max(0, calculateNights(checkInDate, checkOutDate));
+
+  useEffect(() => {
+    if (nightsCount <= 0) {
+      if (pricingInput === 'nightly' && totalAmount !== '') setTotalAmount('');
+      return;
+    }
+
+    if (pricingInput === 'total') {
+      if (!totalAmount.trim()) return;
+      const nextNightlyRate = euroInputFromCents(
+        Math.round(Math.max(0, eurosToCents(totalAmount)) / nightsCount)
+      );
+      if (nextNightlyRate !== nightlyRate) setNightlyRate(nextNightlyRate);
+      return;
+    }
+
+    if (!nightlyRate.trim()) {
+      if (totalAmount !== '') setTotalAmount('');
+      return;
+    }
+
+    const nextTotal = euroInputFromCents(
+      nightsCount * Math.max(0, eurosToCents(nightlyRate))
+    );
+    if (nextTotal !== totalAmount) setTotalAmount(nextTotal);
+  }, [nightsCount, pricingInput]);
+
   if (!isAdding && !isEditing) return null;
 
-  const nightsCount = Math.max(0, calculateNights(checkInDate, checkOutDate));
-  const nightlyRateCents = Math.max(0, eurosToCents(nightlyRate));
-  const totalCents = nightsCount * nightlyRateCents;
   const propertyOptions = ALL_PROPERTIES.map((property) => ({
     value: property.id,
     label: property.name,
@@ -129,6 +175,30 @@ export function BookingModal() {
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'provisional', label: 'Provisional (Pending)' },
   ];
+
+  const handleNightlyRateChange = (value: string) => {
+    setPricingInput('nightly');
+    setNightlyRate(value);
+    setTotalAmount(
+      nightsCount > 0 && value.trim()
+        ? euroInputFromCents(nightsCount * Math.max(0, eurosToCents(value)))
+        : ''
+    );
+  };
+
+  const handleTotalAmountChange = (value: string) => {
+    setPricingInput('total');
+    setTotalAmount(value);
+    if (nightsCount > 0 && value.trim()) {
+      setNightlyRate(
+        euroInputFromCents(
+          Math.round(Math.max(0, eurosToCents(value)) / nightsCount)
+        )
+      );
+    } else if (!value.trim()) {
+      setNightlyRate('');
+    }
+  };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -146,10 +216,15 @@ export function BookingModal() {
       setFormError('Check-out date must be after check-in date.');
       return;
     }
-    if (!nightlyRate.trim()) {
-      setFormError('Nightly rate is required.');
+    if (!nightlyRate.trim() && !totalAmount.trim()) {
+      setFormError('Enter either the nightly rate or the total amount.');
       return;
     }
+
+    const nightlyRateCents =
+      pricingInput === 'total' && totalAmount.trim()
+        ? Math.round(Math.max(0, eurosToCents(totalAmount)) / nightsCount)
+        : Math.max(0, eurosToCents(nightlyRate));
 
     const payload = {
       propertyId,
@@ -185,6 +260,9 @@ export function BookingModal() {
       },
     });
   };
+
+  const amountInputClass =
+    'h-11 w-full rounded-xl bg-white px-3.5 text-base font-bold tabular-nums text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#352b29]/40 p-0 backdrop-blur-sm sm:p-4">
@@ -239,7 +317,7 @@ export function BookingModal() {
                     className={`flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-bold transition-all ${
                       channel === item.id
                         ? 'border-[#ffc7c4] bg-white text-[#c83f45] shadow-sm'
-                        : 'border-transparent text-[#717171] hover:bg-white hover:text-[#222222]'
+                        : 'border-transparent text-[#625d5a] hover:bg-white hover:text-[#222222]'
                     }`}
                   >
                     <span className={`h-2 w-2 rounded-full ${item.dotColor}`} />
@@ -254,13 +332,13 @@ export function BookingModal() {
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-semibold text-[#4d4744]">Guest Name *</span>
               <span className="relative">
-                <User className="absolute left-3.5 top-3 h-4 w-4 text-[#9a918d]" />
+                <User className="absolute left-3.5 top-3 h-4 w-4 text-[#8f8783]" />
                 <input
                   type="text"
                   required
                   value={guestName}
                   onChange={(event) => setGuestName(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white py-2.5 pl-10 pr-3.5 text-sm text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
+                  className="h-11 w-full rounded-xl border border-[#d8d1cd] bg-white py-2.5 pl-10 pr-3.5 text-sm font-medium text-[#222222] outline-none transition-all placeholder:text-[#aaa3a0] focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
                 />
               </span>
             </label>
@@ -289,34 +367,48 @@ export function BookingModal() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 rounded-2xl border border-[#eee8e5] bg-[#fffaf9] p-4 sm:grid-cols-2">
-            <label className="space-y-1.5 text-sm font-semibold text-[#4d4744]">
-              <span className="block">Nightly Rate (€) *</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                required
-                value={nightlyRate}
-                onChange={(event) => setNightlyRate(event.target.value)}
-                className="h-11 w-full rounded-xl border border-[#ded8d4] bg-white px-3.5 text-sm text-[#222222] outline-none transition-all focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/10"
-              />
-            </label>
-            <label className="space-y-1.5 text-sm font-semibold text-[#4d4744]">
-              <span className="flex items-center justify-between gap-2">
-                <span>Total (€)</span>
-                <span className="text-xs font-medium text-[#8a817d]">
-                  {nightsCount} {nightsCount === 1 ? 'night' : 'nights'}
+          <div className="rounded-2xl border border-[#e9e2de] bg-[#fffaf9] p-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5 text-sm font-semibold text-[#4d4744]">
+                <span className="block">Nightly Rate (€)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={nightlyRate}
+                  onChange={(event) => handleNightlyRateChange(event.target.value)}
+                  className={`${amountInputClass} ${
+                    pricingInput === 'nightly'
+                      ? 'border border-[#ffaaa6] shadow-[0_0_0_3px_rgba(255,90,95,0.06)]'
+                      : 'border border-[#d8d1cd]'
+                  }`}
+                />
+              </label>
+              <label className="space-y-1.5 text-sm font-semibold text-[#4d4744]">
+                <span className="flex items-center justify-between gap-2">
+                  <span>Total (€)</span>
+                  <span className="text-xs font-semibold text-[#6f6864]">
+                    {nightsCount} {nightsCount === 1 ? 'night' : 'nights'}
+                  </span>
                 </span>
-              </span>
-              <input
-                type="text"
-                readOnly
-                value={nightsCount > 0 ? euroInputFromCents(totalCents) : ''}
-                placeholder="Select dates"
-                className="h-11 w-full cursor-not-allowed rounded-xl border border-[#ffcfc9] bg-[#fff1ef] px-3.5 text-sm font-bold text-[#a93439] placeholder:text-[#b98d89]"
-              />
-            </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={totalAmount}
+                  onChange={(event) => handleTotalAmountChange(event.target.value)}
+                  placeholder="Enter total"
+                  className={`${amountInputClass} ${
+                    pricingInput === 'total'
+                      ? 'border border-[#ffaaa6] shadow-[0_0_0_3px_rgba(255,90,95,0.06)]'
+                      : 'border border-[#d8d1cd]'
+                  }`}
+                />
+              </label>
+            </div>
+            <p className="mt-3 text-xs font-medium leading-5 text-[#756e6a]">
+              Enter either amount. The other field is recalculated automatically from the selected number of nights.
+            </p>
           </div>
 
           <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-[#eee8e5] bg-white/95 py-3 backdrop-blur">
@@ -325,7 +417,7 @@ export function BookingModal() {
                 <button
                   type="button"
                   onClick={handleDelete}
-                  className="flex h-10 items-center gap-1.5 rounded-xl border border-[#f1c9c6] bg-[#fff5f4] px-3 text-xs font-bold text-[#b13a40] transition-colors hover:bg-[#ffebe9]"
+                  className="flex h-10 items-center gap-1.5 rounded-xl border border-[#f1c9c6] bg-[#fff5f4] px-3 text-xs font-bold text-[#9e3036] transition-colors hover:bg-[#ffebe9]"
                 >
                   <Trash2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Delete</span>
@@ -335,7 +427,7 @@ export function BookingModal() {
                   onClick={() =>
                     openModal('booking_add', { copyFromBookingId: editingBooking.id })
                   }
-                  className="flex h-10 items-center gap-1.5 rounded-xl border border-[#e7e2df] bg-white px-3 text-xs font-bold text-[#4f4f4f] transition-colors hover:bg-[#f8f6f5]"
+                  className="flex h-10 items-center gap-1.5 rounded-xl border border-[#d8d1cd] bg-white px-3 text-xs font-bold text-[#3f3b39] transition-colors hover:bg-[#f8f6f5]"
                 >
                   <Copy className="h-4 w-4" />
                   <span className="hidden sm:inline">Copy</span>
@@ -348,7 +440,7 @@ export function BookingModal() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="h-10 rounded-xl border border-[#ded8d4] bg-white px-4 text-xs font-bold text-[#5f5f5f] transition-colors hover:bg-[#f8f6f5]"
+                className="h-10 rounded-xl border border-[#d8d1cd] bg-white px-4 text-xs font-bold text-[#46413f] transition-colors hover:bg-[#f8f6f5]"
               >
                 Cancel
               </button>
