@@ -203,3 +203,39 @@
     display: none;
   }
 }
+
+/* Balanced location and property creation panel. */
+@media (min-width: 1280px) {
+  [class~="max-w-6xl"]
+    [class~="xl:grid-cols-2"][class~="rounded-2xl"][class~="shadow-[0_8px_26px_rgba(55,42,36,0.05)]"] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) !important;
+    gap: 0 !important;
+    padding: 16px !important;
+  }
+
+  [class~="max-w-6xl"]
+    [class~="xl:grid-cols-2"][class~="rounded-2xl"][class~="shadow-[0_8px_26px_rgba(55,42,36,0.05)]"]
+    > div:first-child {
+    grid-template-columns: minmax(0, 1fr) 140px !important;
+    column-gap: 10px !important;
+    padding-right: 16px;
+  }
+
+  [class~="max-w-6xl"]
+    [class~="xl:grid-cols-2"][class~="rounded-2xl"][class~="shadow-[0_8px_26px_rgba(55,42,36,0.05)]"]
+    > div:last-child {
+    grid-template-columns: minmax(150px, 1fr) minmax(160px, 0.9fr) 140px !important;
+    column-gap: 10px !important;
+    border-left: 1px solid #eee8e5;
+    padding-left: 16px;
+  }
+
+  [class~="max-w-6xl"]
+    [class~="xl:grid-cols-2"][class~="rounded-2xl"][class~="shadow-[0_8px_26px_rgba(55,42,36,0.05)]"]
+    label,
+  [class~="max-w-6xl"]
+    [class~="xl:grid-cols-2"][class~="rounded-2xl"][class~="shadow-[0_8px_26px_rgba(55,42,36,0.05)]"]
+    button {
+    min-width: 0;
+  }
+}
