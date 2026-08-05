@@ -25,34 +25,38 @@ import { formatCents } from '../../utils/currency';
 import { getGuestDisplayName } from '../../utils/guestNames';
 import { CustomSelect } from '../common/CustomSelect';
 
-const MOBILE_DAY_ROW_HEIGHT = 58;
+const MOBILE_DAY_ROW_HEIGHT = 64;
 const REPORT_PROPERTY_SESSION_KEY = 'shortlet-report-property-id';
 type MobileSection = 'schedule' | 'finance';
 
 const channelMeta = {
   airbnb: {
     label: 'Airbnb',
-    badge: 'border-[#f0aaa6] bg-white/90 text-[#a93439]',
-    block: 'border-[#ffb9b5] bg-[#fff0ef] text-[#5c292c]',
-    rail: 'border-[#e5484e] bg-[#ff5a5f]',
+    dot: 'bg-[#ff5a5f]',
+    accent: 'border-l-[#ff5a5f]',
+    block: 'border-[#ffc8c5] bg-[#fff5f4] text-[#4e292c]',
+    badge: 'border-[#f2b0ad] bg-white text-[#a93439]',
   },
   booking_com: {
     label: 'Booking.com',
-    badge: 'border-[#b9d2eb] bg-white/90 text-[#1f5f9f]',
-    block: 'border-[#bdd4ed] bg-[#eef5ff] text-[#254d77]',
-    rail: 'border-[#2e68b8] bg-[#3478d4]',
+    dot: 'bg-[#3478d4]',
+    accent: 'border-l-[#3478d4]',
+    block: 'border-[#bfd6ed] bg-[#f2f7fd] text-[#234f79]',
+    badge: 'border-[#b7d0ea] bg-white text-[#245f9b]',
   },
   direct: {
     label: 'Direct',
-    badge: 'border-[#add9c6] bg-white/90 text-[#1f6b4e]',
-    block: 'border-[#b7dfce] bg-[#edf8f3] text-[#245b47]',
-    rail: 'border-[#14875e] bg-[#18a875]',
+    dot: 'bg-[#18a875]',
+    accent: 'border-l-[#18a875]',
+    block: 'border-[#b8dfcf] bg-[#f1f9f5] text-[#245c48]',
+    badge: 'border-[#add9c6] bg-white text-[#1f6b4e]',
   },
   vrbo: {
     label: 'VRBO',
-    badge: 'border-[#ceb8e1] bg-white/90 text-[#65468b]',
-    block: 'border-[#d5c1e7] bg-[#f5effc] text-[#5d4475]',
-    rail: 'border-[#7047ad] bg-[#8b5bd1]',
+    dot: 'bg-[#8b5bd1]',
+    accent: 'border-l-[#8b5bd1]',
+    block: 'border-[#d4c2e6] bg-[#f7f2fb] text-[#5b4175]',
+    badge: 'border-[#cdb8e0] bg-white text-[#684b8b]',
   },
 } as const;
 
@@ -61,6 +65,14 @@ interface MobileBookingSpan {
   booking: Booking;
   startIndex: number;
   visibleDates: string[];
+}
+
+function formatMobileDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
 }
 
 export function MobileCalendarView() {
@@ -91,6 +103,10 @@ export function MobileCalendarView() {
   const days = useMemo(
     () => getDaysForMonth(selectedYear, selectedMonth),
     [selectedYear, selectedMonth]
+  );
+  const dayByDate = useMemo(
+    () => new Map(days.map((day) => [day.dateStr, day] as const)),
+    [days]
   );
   const property = activeProperties.find(
     (item) => item.id === selectedPropertyId
@@ -164,7 +180,7 @@ export function MobileCalendarView() {
 
   if (!property) {
     return (
-      <div className="flex h-full items-center justify-center p-6 text-xs text-[#756e69] md:hidden">
+      <div className="flex h-full items-center justify-center p-6 text-sm text-[#756e69] md:hidden">
         Add an active property from Settings.
       </div>
     );
@@ -173,9 +189,9 @@ export function MobileCalendarView() {
   const options = activeProperties.map((item) => ({
     value: item.id,
     label: item.name,
-    icon: <Building2 className="h-3.5 w-3.5 text-[#ff5a5f]" />,
+    icon: <Building2 className="h-4 w-4 text-[#ff5a5f]" />,
     badge: (
-      <span className="text-[9px] uppercase text-[#756e69]">
+      <span className="text-[10px] font-semibold uppercase text-[#756e69]">
         {LOCATIONS.find((location) => location.id === item.locationId)?.name}
       </span>
     ),
@@ -202,36 +218,37 @@ export function MobileCalendarView() {
           options={options}
           onChange={setSelectedPropertyId}
         />
+
         <div className="grid grid-cols-2 rounded-xl border border-[#e7dfdb] bg-white p-1 shadow-sm">
           <button
             type="button"
             onClick={() => setSection('schedule')}
-            className={`flex h-9 items-center justify-center gap-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-colors ${
+            className={`flex h-11 items-center justify-center gap-2 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
               section === 'schedule'
                 ? 'bg-[#ff5a5f] text-white shadow-sm'
-                : 'text-[#6f6864]'
+                : 'text-[#5f5955]'
             }`}
           >
-            <CalendarDays className="h-3.5 w-3.5" /> Schedule
+            <CalendarDays className="h-4 w-4" /> Schedule
           </button>
           <button
             type="button"
             onClick={() => setSection('finance')}
-            className={`flex h-9 items-center justify-center gap-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-colors ${
+            className={`flex h-11 items-center justify-center gap-2 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
               section === 'finance'
                 ? 'bg-[#ff5a5f] text-white shadow-sm'
-                : 'text-[#6f6864]'
+                : 'text-[#5f5955]'
             }`}
           >
-            <WalletCards className="h-3.5 w-3.5" /> Finance
+            <WalletCards className="h-4 w-4" /> Finance
           </button>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-[max(6rem,env(safe-area-inset-bottom))] no-scrollbar">
+      <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         {section === 'schedule' ? (
           <div
-            className="relative grid grid-cols-[58px_minmax(0,1fr)] bg-white"
+            className="relative grid grid-cols-[54px_minmax(0,1fr)] bg-white"
             style={{
               gridTemplateRows: `repeat(${days.length}, ${MOBILE_DAY_ROW_HEIGHT}px)`,
             }}
@@ -253,14 +270,14 @@ export function MobileCalendarView() {
                       day.isToday
                         ? 'bg-[#fff0ef] text-[#c73e44]'
                         : day.isWeekend
-                          ? 'bg-[#faf8f6] text-[#4f4946]'
+                          ? 'bg-[#faf8f6] text-[#3f3a37]'
                           : 'bg-white text-[#24211f]'
                     }`}
                   >
-                    <span className="text-sm font-extrabold leading-none">
+                    <span className="text-[15px] font-extrabold leading-none tabular-nums">
                       {day.dayNumber}
                     </span>
-                    <span className="mt-1 text-[8px] font-extrabold uppercase tracking-wide text-[#756e69]">
+                    <span className="mt-1.5 text-[9px] font-bold uppercase tracking-wide text-[#6f6864]">
                       {day.weekday}
                     </span>
                   </div>
@@ -277,7 +294,7 @@ export function MobileCalendarView() {
                   >
                     {!state.isOccupied &&
                       (checkoutBooking ? (
-                        <div className="flex h-full items-center justify-between gap-2 px-2">
+                        <div className="flex h-full items-center justify-between gap-2 px-3">
                           <button
                             type="button"
                             onClick={() =>
@@ -285,36 +302,43 @@ export function MobileCalendarView() {
                                 bookingId: checkoutBooking.id,
                               })
                             }
-                            className="flex min-w-0 items-center gap-2 text-left"
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
                           >
-                            <LogOut className="h-3.5 w-3.5 flex-shrink-0 text-[#b7791f]" />
-                            <span className="block min-w-0 truncate text-[10px] font-extrabold text-[#4f4946]">
-                              Checkout ·{' '}
-                              {getGuestDisplayName(checkoutBooking.guestName)}
-                            </span>
+                            <LogOut className="h-4 w-4 flex-shrink-0 text-[#a66a17]" />
+                            <div className="min-w-0">
+                              <span className="block truncate text-[11px] font-extrabold text-[#3f3a37]">
+                                Checkout ·{' '}
+                                {getGuestDisplayName(checkoutBooking.guestName)}
+                              </span>
+                              <span className="mt-0.5 block text-[10px] font-semibold text-[#817873]">
+                                Ready for a new reservation
+                              </span>
+                            </div>
                           </button>
                           <button
                             type="button"
                             onClick={() => openNewBooking(day.dateStr)}
-                            className="flex h-8 flex-shrink-0 items-center gap-1 rounded-lg border border-[#e7dfdb] bg-white px-2 text-[8px] font-extrabold uppercase text-[#6f6864]"
+                            className="flex h-11 min-w-11 flex-shrink-0 items-center justify-center rounded-xl border border-[#e7dfdb] bg-white px-3 text-[10px] font-extrabold uppercase text-[#5f5955] shadow-sm"
+                            aria-label="Create a reservation on checkout day"
                           >
-                            <CalendarPlus className="h-3 w-3 text-[#ff5a5f]" />
-                            Book
+                            <CalendarPlus className="h-4 w-4 text-[#ff5a5f]" />
                           </button>
                         </div>
                       ) : (
                         <button
                           type="button"
                           onClick={() => openNewBooking(day.dateStr)}
-                          className="flex h-full w-full items-center justify-between gap-3 px-3 text-left hover:bg-[#fff7f5]"
+                          className="flex h-full w-full items-center justify-between gap-3 px-3 text-left transition-colors hover:bg-[#fff7f5]"
                         >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <CircleDot className="h-3.5 w-3.5 flex-shrink-0 text-[#18a875]" />
-                            <span className="text-[10px] font-extrabold uppercase tracking-wide text-[#9a918c]">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <CircleDot className="h-4 w-4 flex-shrink-0 text-[#18a875]" />
+                            <span className="text-[11px] font-extrabold uppercase tracking-wide text-[#817873]">
                               Available
                             </span>
                           </div>
-                          <CalendarPlus className="h-4 w-4 flex-shrink-0 text-[#ff5a5f]" />
+                          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-[#ff5a5f]">
+                            <CalendarPlus className="h-5 w-5" />
+                          </span>
                         </button>
                       ))}
                   </div>
@@ -327,20 +351,21 @@ export function MobileCalendarView() {
               const channel = channelMeta[booking.channel];
               const occupiedBookingNights = getBookingOccupiedNights(booking);
               const guestName = getGuestDisplayName(booking.guestName);
-              const isCompact = span.visibleDates.length <= 2;
+              const totalNights = occupiedBookingNights.length;
+              const totalCents = occupiedBookingNights.reduce(
+                (sum, night) => sum + night.allocatedRevenueCents,
+                0
+              );
+              const continuesOutsideMonth =
+                span.visibleDates.length < totalNights;
               const provisionalStripeClass =
                 booking.status === 'provisional' && showProvisionalBlock
-                  ? 'bg-[linear-gradient(45deg,rgba(76,57,52,0.10)_25%,transparent_25%,transparent_50%,rgba(76,57,52,0.10)_50%,rgba(76,57,52,0.10)_75%,transparent_75%,transparent)] bg-[length:12px_12px]'
+                  ? 'bg-[linear-gradient(135deg,rgba(76,57,52,0.055)_25%,transparent_25%,transparent_50%,rgba(76,57,52,0.055)_50%,rgba(76,57,52,0.055)_75%,transparent_75%,transparent)] bg-[length:16px_16px]'
                   : '';
 
               const revenueForNight = (dateStr: string) =>
                 occupiedBookingNights.find((night) => night.dateStr === dateStr)
                   ?.allocatedRevenueCents ?? booking.nightlyRateCents;
-
-              const visibleTotalCents = span.visibleDates.reduce(
-                (total, dateStr) => total + revenueForNight(dateStr),
-                0
-              );
 
               return (
                 <button
@@ -353,69 +378,61 @@ export function MobileCalendarView() {
                     gridColumn: 2,
                     gridRow: `${span.startIndex + 1} / span ${span.visibleDates.length}`,
                   }}
-                  className={`z-10 min-h-0 overflow-hidden border text-left shadow-[0_6px_18px_rgba(52,42,37,0.08)] ${channel.block} ${provisionalStripeClass}`}
+                  className={`z-10 m-1.5 min-h-0 overflow-hidden rounded-2xl border border-l-4 text-left shadow-[0_6px_18px_rgba(52,42,37,0.08)] transition-transform active:scale-[0.99] ${channel.block} ${channel.accent} ${provisionalStripeClass}`}
                 >
-                  <div
-                    className={`grid h-full min-h-0 ${
-                      isCompact
-                        ? 'grid-cols-[96px_minmax(0,1fr)]'
-                        : 'grid-cols-[66px_minmax(0,1fr)]'
-                    }`}
-                  >
-                    <div
-                      className={`flex min-h-0 flex-col overflow-hidden border-r ${channel.rail}`}
-                    >
-                      {isCompact ? (
-                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-2 py-1 text-center">
-                          <span className="w-full truncate text-[8px] font-extrabold uppercase tracking-wide text-white">
+                  <div className="flex h-full min-h-0 flex-col">
+                    <div className="flex min-h-0 items-start justify-between gap-3 border-b border-black/10 px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${channel.dot}`}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-[13px] font-extrabold normal-case leading-tight">
                             {guestName}
                           </span>
-                          <strong className="mt-0.5 text-[8px] font-extrabold text-white">
-                            {formatCents(visibleTotalCents)}
-                          </strong>
                         </div>
-                      ) : (
-                        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden py-1">
-                          <div
-                            className="flex items-center gap-2 whitespace-nowrap"
-                            style={{
-                              writingMode: 'vertical-rl',
-                              transform: 'rotate(180deg)',
-                            }}
-                          >
-                            <span className="max-h-full overflow-hidden text-ellipsis text-[10px] font-extrabold uppercase tracking-wide text-white">
-                              {guestName}
-                            </span>
-                            <strong className="text-[9px] font-extrabold text-white">
-                              {formatCents(visibleTotalCents)}
-                            </strong>
-                          </div>
-                        </div>
-                      )}
-
-                      {!isCompact && (
-                        <span
-                          className={`mx-auto mb-1 flex-shrink-0 rounded border px-1 py-0.5 text-[6px] font-extrabold uppercase leading-none ${channel.badge}`}
-                        >
-                          {channel.label.slice(0, 3)}
+                        <span className="mt-1.5 block truncate text-[10px] font-semibold opacity-75">
+                          {formatMobileDate(booking.checkInDate)} →{' '}
+                          {formatMobileDate(booking.checkOutDate)} · {totalNights}{' '}
+                          {totalNights === 1 ? 'night' : 'nights'}
+                          {continuesOutsideMonth ? ' · Continues' : ''}
                         </span>
-                      )}
+                      </div>
+
+                      <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                        <span
+                          className={`rounded-lg border px-2 py-1 text-[9px] font-extrabold leading-none ${channel.badge}`}
+                        >
+                          {channel.label}
+                        </span>
+                        <strong className="text-[12px] font-extrabold tabular-nums">
+                          {formatCents(totalCents)}
+                        </strong>
+                      </div>
                     </div>
 
-                    <div className="flex min-h-0 flex-col">
-                      {span.visibleDates.map((dateStr) => (
-                        <div
-                          key={dateStr}
-                          className="flex min-h-0 flex-1 items-center justify-between gap-2 border-b border-black/5 px-3 last:border-b-0"
-                        >
-                          <span className="text-[10px] font-extrabold">
-                            {Number(dateStr.slice(-2))}
-                          </span>
-                          <span className="text-[9px] font-extrabold">
-                            {formatCents(revenueForNight(dateStr))}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="min-h-0 flex-1 divide-y divide-black/10">
+                      {span.visibleDates.map((dateStr) => {
+                        const day = dayByDate.get(dateStr);
+                        return (
+                          <div
+                            key={dateStr}
+                            className="flex min-h-[32px] flex-1 items-center justify-between gap-3 px-3"
+                          >
+                            <span className="flex min-w-0 items-baseline gap-2 text-[11px] font-bold">
+                              <strong className="text-[12px] font-extrabold tabular-nums">
+                                {day?.dayNumber ?? Number(dateStr.slice(-2))}
+                              </strong>
+                              <span className="uppercase opacity-65">
+                                {day?.weekday}
+                              </span>
+                            </span>
+                            <span className="flex-shrink-0 text-[11px] font-extrabold tabular-nums">
+                              {formatCents(revenueForNight(dateStr))} / night
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </button>
@@ -424,37 +441,37 @@ export function MobileCalendarView() {
           </div>
         ) : financials ? (
           <div className="space-y-3 bg-[#fffdfc] p-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-[#d9e4ec] bg-[#f3f8fb] p-3">
-                <span className="text-[9px] font-extrabold uppercase text-[#5f7180]">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-h-24 rounded-2xl border border-[#d9e4ec] bg-[#f3f8fb] p-3.5">
+                <span className="text-[11px] font-extrabold uppercase text-[#506776]">
                   Occupancy
                 </span>
-                <strong className="mt-1 block text-lg font-extrabold text-[#285f7d]">
+                <strong className="mt-2 block text-xl font-extrabold text-[#285f7d] tabular-nums">
                   {occupancy}%
                 </strong>
               </div>
-              <div className="rounded-xl border border-[#b8dfcf] bg-[#eef8f3] p-3">
-                <span className="text-[9px] font-extrabold uppercase text-[#34745d]">
+              <div className="min-h-24 rounded-2xl border border-[#b8dfcf] bg-[#eef8f3] p-3.5">
+                <span className="text-[11px] font-extrabold uppercase text-[#34745d]">
                   Booking Income
                 </span>
-                <strong className="mt-1 block text-lg font-extrabold text-[#1f6b4e]">
+                <strong className="mt-2 block text-xl font-extrabold text-[#1f6b4e] tabular-nums">
                   {formatCents(financials.bookingIncomeCents)}
                 </strong>
               </div>
-              <div className="rounded-xl border border-[#efc3c0] bg-[#fff1f0] p-3">
-                <span className="text-[9px] font-extrabold uppercase text-[#a34b4f]">
+              <div className="min-h-24 rounded-2xl border border-[#efc3c0] bg-[#fff1f0] p-3.5">
+                <span className="text-[11px] font-extrabold uppercase text-[#93454a]">
                   Expenses
                 </span>
-                <strong className="mt-1 block text-lg font-extrabold text-[#a93439]">
+                <strong className="mt-2 block text-xl font-extrabold text-[#a93439] tabular-nums">
                   -{formatCents(financials.totalExpensesCents)}
                 </strong>
               </div>
-              <div className="rounded-xl border border-[#e7dfdb] bg-white p-3">
-                <span className="text-[9px] font-extrabold uppercase text-[#6f6864]">
+              <div className="min-h-24 rounded-2xl border border-[#e7dfdb] bg-white p-3.5">
+                <span className="text-[11px] font-extrabold uppercase text-[#5f5955]">
                   Net Balance
                 </span>
                 <strong
-                  className={`mt-1 block text-lg font-extrabold ${
+                  className={`mt-2 block text-xl font-extrabold tabular-nums ${
                     financials.netBalanceCents >= 0
                       ? 'text-[#1f6b4e]'
                       : 'text-[#a93439]'
@@ -464,6 +481,7 @@ export function MobileCalendarView() {
                 </strong>
               </div>
             </div>
+
             <button
               type="button"
               onClick={() =>
@@ -472,14 +490,14 @@ export function MobileCalendarView() {
                   propertyId: property.id,
                 })
               }
-              className="h-11 w-full rounded-xl bg-[#ff5a5f] text-xs font-extrabold uppercase text-white shadow-sm"
+              className="h-12 w-full rounded-xl bg-[#ff5a5f] text-[11px] font-extrabold uppercase text-white shadow-sm"
             >
               Edit Monthly Finance
             </button>
             <button
               type="button"
               onClick={openReports}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#e7dfdb] bg-white text-xs font-extrabold uppercase text-[#3f3a37]"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#e7dfdb] bg-white text-[11px] font-extrabold uppercase text-[#3f3a37]"
             >
               <BarChart3 className="h-4 w-4" /> Open Reports
             </button>
@@ -488,13 +506,15 @@ export function MobileCalendarView() {
       </div>
 
       {section === 'schedule' && (
-        <button
-          type="button"
-          onClick={() => openNewBooking()}
-          className="absolute bottom-4 right-4 flex h-12 items-center gap-2 rounded-full bg-[#ff5a5f] px-5 text-xs font-extrabold uppercase text-white shadow-xl"
-        >
-          <CalendarPlus className="h-4 w-4" /> New Booking
-        </button>
+        <div className="flex-shrink-0 border-t border-[#e7dfdb] bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => openNewBooking()}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#ff5a5f] px-5 text-[11px] font-extrabold uppercase text-white shadow-[0_8px_20px_rgba(255,90,95,0.24)]"
+          >
+            <CalendarPlus className="h-5 w-5" /> New Booking
+          </button>
+        </div>
       )}
     </div>
   );
