@@ -8,7 +8,12 @@ PORT="3000"
 
 cd "$ROOT_DIR"
 
-echo "[Property Management] Verifying workspace..."
+echo "[Property Management] Starting workspace..."
+
+if [[ ! -x "node_modules/.bin/vite" ]]; then
+  echo "[Property Management] Installing dependencies..."
+  npm install
+fi
 
 if command -v lsof >/dev/null 2>&1; then
   LISTENERS="$(lsof -tiTCP:${PORT} -sTCP:LISTEN 2>/dev/null || true)"
@@ -33,20 +38,16 @@ if [[ -f "$PID_FILE" ]]; then
 fi
 
 rm -f "$LOG_FILE"
-
-npm run verify
-
-nohup npm run serve:workspace >"$LOG_FILE" 2>&1 </dev/null &
+nohup npm run dev >"$LOG_FILE" 2>&1 </dev/null &
 SERVER_PID=$!
 echo "$SERVER_PID" > "$PID_FILE"
 
-for _ in $(seq 1 30); do
+for _ in $(seq 1 60); do
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
     break
   fi
 
-  if curl --max-time 3 -fsS "http://127.0.0.1:${PORT}/__health" >/dev/null 2>&1 && \
-     curl --max-time 3 -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+  if curl --max-time 3 -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
     BROWSE_URL=""
 
     if command -v gh >/dev/null 2>&1 && [[ -n "${CODESPACE_NAME:-}" ]]; then
@@ -61,9 +62,9 @@ for _ in $(seq 1 30); do
       BROWSE_URL="https://${CODESPACE_NAME}-${PORT}.app.github.dev"
     fi
 
-    echo "[Property Management] Verified workspace ready: http://localhost:${PORT}"
+    echo "[Property Management] Workspace ready: http://localhost:${PORT}"
     if [[ -n "$BROWSE_URL" ]]; then
-      echo "[Property Management] Open this URL: ${BROWSE_URL}"
+      echo "[Property Management] Open: ${BROWSE_URL}"
       if command -v code >/dev/null 2>&1; then
         code --open-url "$BROWSE_URL" >/dev/null 2>&1 || true
       fi
@@ -74,7 +75,7 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-echo "[Property Management] Workspace server failed after verification."
+echo "[Property Management] Workspace server could not start."
 echo "---------------- Server log ----------------"
 cat "$LOG_FILE" 2>/dev/null || true
 echo "--------------------------------------------"
